@@ -62,24 +62,24 @@ static GlobalPtr<Mutex> init_mutex;
 static volatile bool wnet_initialized = false;
 static volatile bool wnet_shutdown = false;
 
-static bool		accept_connection(rem_port*, const P_CNCT*);
-static rem_port*		alloc_port(rem_port*);
-static rem_port*		aux_connect(rem_port*, PACKET*);
-static rem_port*		aux_request(rem_port*, PACKET*);
-static bool		connect_client(rem_port*);
-static void		disconnect(rem_port*);
+static bool		accept_connection(RemPort*, const P_CNCT*);
+static RemPort*		alloc_port(RemPort*);
+static RemPort*		aux_connect(RemPort*, PACKET*);
+static RemPort*		aux_request(RemPort*, PACKET*);
+static bool		connect_client(RemPort*);
+static void		disconnect(RemPort*);
 #ifdef NOT_USED_OR_REPLACED
 static void		exit_handler(void*);
 #endif
-static void		force_close(rem_port*);
+static void		force_close(RemPort*);
 static rem_str*		make_pipe_name(const RefPtr<const Config>&, const TEXT*, const TEXT*, const TEXT*);
-static rem_port*	receive(rem_port*, PACKET*);
-static int		send_full(rem_port*, PACKET*);
-static int		send_partial(rem_port*, PACKET*);
-static int		xdrwnet_create(XDR*, rem_port*, UCHAR*, USHORT, xdr_op);
+static RemPort*	receive(RemPort*, PACKET*);
+static int		send_full(RemPort*, PACKET*);
+static int		send_partial(RemPort*, PACKET*);
+static int		xdrwnet_create(XDR*, RemPort*, UCHAR*, USHORT, xdr_op);
 static bool_t	xdrwnet_endofrecord(XDR*);//, int);
-static bool		wnet_error(rem_port*, const TEXT*, ISC_STATUS, int);
-static void		wnet_gen_error(rem_port*, const Arg::StatusVector& v);
+static bool		wnet_error(RemPort*, const TEXT*, ISC_STATUS, int);
+static void		wnet_gen_error(RemPort*, const Arg::StatusVector& v);
 static bool_t	wnet_getbytes(XDR*, SCHAR*, u_int);
 static bool_t	wnet_putbytes(XDR*, const SCHAR*, u_int);
 static bool_t	wnet_read(XDR*);
@@ -87,8 +87,8 @@ static bool_t	wnet_write(XDR*); //, int);
 #ifdef DEBUG
 static void		packet_print(const TEXT*, const UCHAR*, const int);
 #endif
-static bool		packet_receive(rem_port*, UCHAR*, SSHORT, SSHORT*);
-static bool		packet_send(rem_port*, const SCHAR*, SSHORT);
+static bool		packet_receive(RemPort*, UCHAR*, SSHORT, SSHORT*);
+static bool		packet_send(RemPort*, const SCHAR*, SSHORT);
 static void		wnet_make_file_name(TEXT*, DWORD);
 
 static int		cleanup_ports(const int, const int, void*);
@@ -100,7 +100,7 @@ static xdr_t::xdr_ops wnet_ops =
 };
 
 
-rem_port* WNET_analyze(ClntAuthBlock* cBlock,
+RemPort* WNET_analyze(ClntAuthBlock* cBlock,
 					   const PathName& file_name,
 					   const TEXT* node_name,
 					   bool uv_flag,
@@ -186,7 +186,7 @@ rem_port* WNET_analyze(ClntAuthBlock* cBlock,
 
 	// If we can't talk to a server, punt. Let somebody else generate an error.
 
-	rem_port* port = NULL;
+	RemPort* port = NULL;
 	try
 	{
 		port = WNET_connect(node_name, packet, 0, config);
@@ -271,7 +271,7 @@ rem_port* WNET_analyze(ClntAuthBlock* cBlock,
 }
 
 
-rem_port* WNET_connect(const TEXT* name, PACKET* packet, USHORT flag, Firebird::RefPtr<const Config>* config)
+RemPort* WNET_connect(const TEXT* name, PACKET* packet, USHORT flag, Firebird::RefPtr<const Config>* config)
 {
 /**************************************
  *
@@ -285,7 +285,7 @@ rem_port* WNET_connect(const TEXT* name, PACKET* packet, USHORT flag, Firebird::
  *	connect is for a server process.
  *
  **************************************/
-	rem_port* const port = alloc_port(0);
+	RemPort* const port = alloc_port(0);
 	if (config)
 	{
 		port->port_config = *config;
@@ -410,7 +410,7 @@ rem_port* WNET_connect(const TEXT* name, PACKET* packet, USHORT flag, Firebird::
 }
 
 
-rem_port* WNET_reconnect(HANDLE handle)
+RemPort* WNET_reconnect(HANDLE handle)
 {
 /**************************************
  *
@@ -424,7 +424,7 @@ rem_port* WNET_reconnect(HANDLE handle)
  *	a port block.
  *
  **************************************/
-	rem_port* const port = alloc_port(0);
+	RemPort* const port = alloc_port(0);
 
 	delete port->port_connection;
 	port->port_connection = make_pipe_name(port->getPortConfig(), NULL, SERVER_PIPE_SUFFIX, 0);
@@ -437,7 +437,7 @@ rem_port* WNET_reconnect(HANDLE handle)
 }
 
 
-static bool accept_connection( rem_port* port, const P_CNCT* cnct)
+static bool accept_connection( RemPort* port, const P_CNCT* cnct)
 {
 /**************************************
  *
@@ -486,7 +486,7 @@ static bool accept_connection( rem_port* port, const P_CNCT* cnct)
 }
 
 
-static rem_port* alloc_port( rem_port* parent)
+static RemPort* alloc_port( RemPort* parent)
 {
 /**************************************
  *
@@ -510,7 +510,7 @@ static rem_port* alloc_port( rem_port* parent)
 		}
 	}
 
-	rem_port* port = FB_NEW rem_port(rem_port::PIPE, BUFFER_SIZE * 2);
+	RemPort* port = FB_NEW RemPort(RemPort::PIPE, BUFFER_SIZE * 2);
 
 	TEXT buffer[BUFFER_TINY];
 	ISC_get_host(buffer, sizeof(buffer));
@@ -547,7 +547,7 @@ static rem_port* alloc_port( rem_port* parent)
 }
 
 
-static rem_port* aux_connect( rem_port* port, PACKET* packet)
+static RemPort* aux_connect( RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -587,7 +587,7 @@ static rem_port* aux_connect( rem_port* port, PACKET* packet)
 		p = str_pid;
 	}
 
-	rem_port* const new_port = alloc_port(port->port_parent);
+	RemPort* const new_port = alloc_port(port->port_parent);
 	port->port_async = new_port;
 	new_port->port_flags = port->port_flags & PORT_no_oob;
 	new_port->port_flags |= PORT_async;
@@ -614,7 +614,7 @@ static rem_port* aux_connect( rem_port* port, PACKET* packet)
 }
 
 
-static rem_port* aux_request( rem_port* vport, PACKET* packet)
+static RemPort* aux_request( RemPort* vport, PACKET* packet)
 {
 /**************************************
  *
@@ -633,7 +633,7 @@ static rem_port* aux_request( rem_port* vport, PACKET* packet)
 
 	const DWORD server_pid = (vport->port_server_flags & SRVR_multi_client) ?
 		++event_counter : GetCurrentProcessId();
-	rem_port* const new_port = alloc_port(vport->port_parent);
+	RemPort* const new_port = alloc_port(vport->port_parent);
 	new_port->port_server_flags = vport->port_server_flags;
 	new_port->port_flags = (vport->port_flags & PORT_no_oob) | PORT_connecting;
 	vport->port_async = new_port;
@@ -668,7 +668,7 @@ static rem_port* aux_request( rem_port* vport, PACKET* packet)
 }
 
 
-static bool connect_client(rem_port *port)
+static bool connect_client(RemPort *port)
 {
 /**************************************
  *
@@ -712,7 +712,7 @@ static bool connect_client(rem_port *port)
 }
 
 
-static void disconnect(rem_port* port)
+static void disconnect(RemPort* port)
 {
 /**************************************
  *
@@ -757,7 +757,7 @@ static void disconnect(rem_port* port)
 }
 
 
-static void force_close(rem_port* port)
+static void force_close(RemPort* port)
 {
 /**************************************
  *
@@ -772,7 +772,7 @@ static void force_close(rem_port* port)
 
 	if (port->port_event != INVALID_HANDLE_VALUE)
 	{
-		port->port_state = rem_port::BROKEN;
+		port->port_state = RemPort::BROKEN;
 
 		const HANDLE handle = port->port_pipe;
 		port->port_pipe = INVALID_HANDLE_VALUE;
@@ -796,7 +796,7 @@ static void exit_handler(void* main_port)
  *	to allow restart.
  *
  **************************************/
-	for (rem_port* vport = static_cast<rem_port*>(main_port); vport; vport = vport->port_next)
+	for (RemPort* vport = static_cast<RemPort*>(main_port); vport; vport = vport->port_next)
 		CloseHandle(vport->port_pipe);
 }
 #endif
@@ -865,7 +865,7 @@ static rem_str* make_pipe_name(const RefPtr<const Config>& config, const TEXT* c
 }
 
 
-static rem_port* receive( rem_port* main_port, PACKET* packet)
+static RemPort* receive( RemPort* main_port, PACKET* packet)
 {
 /**************************************
  *
@@ -891,7 +891,7 @@ static rem_port* receive( rem_port* main_port, PACKET* packet)
 }
 
 
-static int send_full( rem_port* port, PACKET* packet)
+static int send_full( RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -915,7 +915,7 @@ static int send_full( rem_port* port, PACKET* packet)
 }
 
 
-static int send_partial( rem_port* port, PACKET* packet)
+static int send_partial( RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -937,7 +937,7 @@ static int send_partial( rem_port* port, PACKET* packet)
 
 
 static int xdrwnet_create(XDR* xdrs,
-						  rem_port* port,
+						  RemPort* port,
 						  UCHAR* buffer, USHORT length, xdr_op x_op)
 {
 /**************************************
@@ -978,7 +978,7 @@ static bool_t xdrwnet_endofrecord( XDR* xdrs) //, bool_t flushnow)
 }
 
 
-static bool wnet_error(rem_port* port,
+static bool wnet_error(RemPort* port,
 					  const TEXT* function, ISC_STATUS operation, int status)
 {
 /**************************************
@@ -995,7 +995,7 @@ static bool wnet_error(rem_port* port,
  **************************************/
 	if (status)
 	{
-		if (port->port_state != rem_port::BROKEN) {
+		if (port->port_state != RemPort::BROKEN) {
 			gds__log("WNET/wnet_error: %s errno = %d", function, status);
 		}
 
@@ -1010,7 +1010,7 @@ static bool wnet_error(rem_port* port,
 }
 
 
-static void wnet_gen_error (rem_port* port, const Arg::StatusVector& v)
+static void wnet_gen_error (RemPort* port, const Arg::StatusVector& v)
 {
 /**************************************
  *
@@ -1024,7 +1024,7 @@ static void wnet_gen_error (rem_port* port, const Arg::StatusVector& v)
  *	save the status vector strings in a permanent place.
  *
  **************************************/
-	port->port_state = rem_port::BROKEN;
+	port->port_state = RemPort::BROKEN;
 
 	TEXT node_name[MAXPATHLEN];
 	if (port->port_connection)
@@ -1188,7 +1188,7 @@ static bool_t wnet_read( XDR* xdrs)
  *	message sent will handle this.
  *
  **************************************/
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 	SCHAR* p = xdrs->x_base;
 	const SCHAR* const end = p + BUFFER_SIZE;
 
@@ -1241,7 +1241,7 @@ static bool_t wnet_write( XDR* xdrs /*, bool_t end_flag*/)
  **************************************/
 	// Encode the data portion of the packet
 
-	rem_port* vport = (rem_port*) xdrs->x_public;
+	RemPort* vport = (RemPort*) xdrs->x_public;
 	const SCHAR* p = xdrs->x_base;
 	SSHORT length = xdrs->x_private - p;
 
@@ -1292,7 +1292,7 @@ static void packet_print(const TEXT* string, const UCHAR* packet, const int leng
 #endif
 
 
-static bool packet_receive(rem_port* port, UCHAR* buffer, SSHORT buffer_length, SSHORT* length)
+static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, SSHORT* length)
 {
 /**************************************
  *
@@ -1357,7 +1357,7 @@ static bool packet_receive(rem_port* port, UCHAR* buffer, SSHORT buffer_length, 
 }
 
 
-static bool packet_send( rem_port* port, const SCHAR* buffer, SSHORT buffer_length)
+static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_length)
 {
 /**************************************
  *

@@ -25,11 +25,11 @@
 #define REMOTE_SERVE_PROTO_H
 
 #ifdef NO_PORT
-#define rem_port void
+#define RemPort void
 #endif
 
-void SRVR_main(rem_port*, USHORT);
-void SRVR_multi_thread(rem_port*, USHORT);
+void SRVR_main(RemPort*, USHORT);
+void SRVR_multi_thread(RemPort*, USHORT);
 void SRVR_enum_attachments(ULONG& att_cnt, ULONG& dbs_cnt, ULONG& svc_cnt);
 
 #endif	// REMOTE_SERVE_PROTO_H

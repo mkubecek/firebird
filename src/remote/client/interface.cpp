@@ -124,7 +124,7 @@ namespace {
 		}
 	}
 
-	inline void CHECK_LENGTH(rem_port* port, size_t length)
+	inline void CHECK_LENGTH(RemPort* port, size_t length)
 	{
 		if (length > MAX_USHORT && port->port_protocol < PROTOCOL_VERSION13)
 			status_exception::raise(Arg::Gds(isc_imp_exc) << Arg::Gds(isc_blktoobig));
@@ -718,33 +718,33 @@ extern "C" void FB_PLUGIN_ENTRY_POINT(IMaster* master)
 
 namespace Remote {
 
-static Rvnt* add_event(rem_port*);
-static void add_other_params(rem_port*, ClumpletWriter&, const ParametersSet&);
+static Rvnt* add_event(RemPort*);
+static void add_other_params(RemPort*, ClumpletWriter&, const ParametersSet&);
 static void add_working_directory(ClumpletWriter&, const PathName&);
-static rem_port* analyze(ClntAuthBlock& cBlock, PathName& attach_name, unsigned flags,
+static RemPort* analyze(ClntAuthBlock& cBlock, PathName& attach_name, unsigned flags,
 	ClumpletWriter& pb, const ParametersSet& parSet, PathName& node_name, PathName* ref_db_name,
 	Firebird::ICryptKeyCallback* cryptCb);
-static void batch_gds_receive(rem_port*, struct rmtque *, USHORT);
-static void batch_dsql_fetch(rem_port*, struct rmtque *, USHORT);
-static void clear_queue(rem_port*);
-static void clear_stmt_que(rem_port*, Rsr*);
-static void disconnect(rem_port*);
-static void enqueue_receive(rem_port*, t_rmtque_fn, Rdb*, void*, Rrq::rrq_repeat*);
-static void dequeue_receive(rem_port*);
+static void batch_gds_receive(RemPort*, struct rmtque *, USHORT);
+static void batch_dsql_fetch(RemPort*, struct rmtque *, USHORT);
+static void clear_queue(RemPort*);
+static void clear_stmt_que(RemPort*, Rsr*);
+static void disconnect(RemPort*);
+static void enqueue_receive(RemPort*, t_rmtque_fn, Rdb*, void*, Rrq::rrq_repeat*);
+static void dequeue_receive(RemPort*);
 static THREAD_ENTRY_DECLARE event_thread(THREAD_ENTRY_PARAM);
-static Rvnt* find_event(rem_port*, SLONG);
+static Rvnt* find_event(RemPort*, SLONG);
 static bool get_new_dpb(ClumpletWriter&, const ParametersSet&);
 static void info(CheckStatusWrapper*, Rdb*, P_OP, USHORT, USHORT, USHORT,
 	const UCHAR*, USHORT, const UCHAR*, ULONG, UCHAR*);
-static void init(CheckStatusWrapper*, ClntAuthBlock&, rem_port*, P_OP, PathName&,
+static void init(CheckStatusWrapper*, ClntAuthBlock&, RemPort*, P_OP, PathName&,
 	ClumpletWriter&, IntlParametersBlock&, ICryptKeyCallback* cryptCallback);
 static Rtr* make_transaction(Rdb*, USHORT);
 static void mov_dsql_message(const UCHAR*, const rem_fmt*, UCHAR*, const rem_fmt*);
 static void move_error(const Arg::StatusVector& v);
 static void receive_after_start(Rrq*, USHORT);
-static void receive_packet(rem_port*, PACKET *);
-static void receive_packet_noqueue(rem_port*, PACKET *);
-static void receive_queued_packet(rem_port*, USHORT);
+static void receive_packet(RemPort*, PACKET *);
+static void receive_packet_noqueue(RemPort*, PACKET *);
+static void receive_queued_packet(RemPort*, USHORT);
 static void receive_response(IStatus*, Rdb*, PACKET *);
 static void release_blob(Rbl*);
 static void release_event(Rvnt*);
@@ -755,16 +755,16 @@ static void release_sql_request(Rsr*);
 static void release_transaction(Rtr*);
 static void send_and_receive(IStatus*, Rdb*, PACKET *);
 static void send_blob(CheckStatusWrapper*, Rbl*, USHORT, const UCHAR*);
-static void send_packet(rem_port*, PACKET *);
-static void send_partial_packet(rem_port*, PACKET *);
-static void server_death(rem_port*);
+static void send_packet(RemPort*, PACKET *);
+static void send_partial_packet(RemPort*, PACKET *);
+static void server_death(RemPort*);
 static void svcstart(CheckStatusWrapper*, Rdb*, P_OP, USHORT, USHORT, USHORT, const UCHAR*);
 static void unsupported();
 static void zap_packet(PACKET *);
 static void cleanDpb(Firebird::ClumpletWriter&, const ParametersSet*);
 static void authFillParametersBlock(ClntAuthBlock& authItr, ClumpletWriter& dpb,
-	const ParametersSet* tags, rem_port* port);
-static void authReceiveResponse(bool havePacket, ClntAuthBlock& authItr, rem_port* port,
+	const ParametersSet* tags, RemPort* port);
+static void authReceiveResponse(bool havePacket, ClntAuthBlock& authItr, RemPort* port,
 	Rdb* rdb, IStatus* status, PACKET* packet, bool checkKeys);
 
 static AtomicCounter remote_event_id;
@@ -780,7 +780,7 @@ inline static void reset(IStatus* status) throw()
 
 #define SET_OBJECT(rdb, object, id) rdb->rdb_port->setHandle(object, id)
 
-inline static void defer_packet(rem_port* port, PACKET* packet, bool sent = false)
+inline static void defer_packet(RemPort* port, PACKET* packet, bool sent = false)
 {
 	// hvlad: passed packet often is rdb->rdb_packet and therefore can be
 	// changed inside clear_queue. To not confuse caller we must preserve
@@ -828,7 +828,7 @@ IAttachment* RProvider::attach(CheckStatusWrapper* status, const char* filename,
 		PathName node_name;
 
 		ClntAuthBlock cBlock(&expanded_name, &newDpb, &dpbParam);
-		rem_port* port = analyze(cBlock, expanded_name, flags, newDpb, dpbParam, node_name, NULL, cryptCallback);
+		RemPort* port = analyze(cBlock, expanded_name, flags, newDpb, dpbParam, node_name, NULL, cryptCallback);
 
 		if (!port)
 		{
@@ -918,7 +918,7 @@ void Blob::getInfo(CheckStatusWrapper* status,
 
 		Rdb* rdb = blob->rbl_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		info(status, rdb, op_info_blob, blob->rbl_id, 0,
@@ -954,7 +954,7 @@ void Blob::freeClientData(CheckStatusWrapper* status, bool force)
 
 		Rdb* rdb = blob->rbl_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		try
@@ -1013,7 +1013,7 @@ void Blob::close(CheckStatusWrapper* status)
 
 		Rdb* rdb = blob->rbl_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		if ((blob->rbl_flags & Rbl::CREATE) && blob->rbl_ptr != blob->rbl_buffer)
@@ -1049,7 +1049,7 @@ void Events::freeClientData(CheckStatusWrapper* status, bool force)
 	try
 	{
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		if (!rvnt)
@@ -1151,7 +1151,7 @@ void Transaction::commit(CheckStatusWrapper* status)
 
 		Rdb* rdb = transaction->rtr_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		release_object(status, rdb, op_commit, transaction->rtr_id);
@@ -1184,7 +1184,7 @@ void Transaction::commitRetaining(CheckStatusWrapper* status)
 
 		Rdb* rdb = transaction->rtr_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		release_object(status, rdb, op_commit_retaining, transaction->rtr_id);
@@ -1269,7 +1269,7 @@ Firebird::IRequest* Attachment::compileRequest(CheckStatusWrapper* status,
 		// Check and validate handles, etc.
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		// Validate data length
@@ -1358,7 +1358,7 @@ IBlob* Attachment::createBlob(CheckStatusWrapper* status, ITransaction* apiTra, 
 		reset(status);
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		Rtr* transaction = remoteTransaction(apiTra);
@@ -1450,7 +1450,7 @@ Firebird::IAttachment* RProvider::create(CheckStatusWrapper* status, const char*
 		PathName node_name;
 
 		ClntAuthBlock cBlock(&expanded_name, &newDpb, &dpbParam);
-		rem_port* port = analyze(cBlock, expanded_name, flags, newDpb, dpbParam, node_name, NULL, cryptCallback);
+		RemPort* port = analyze(cBlock, expanded_name, flags, newDpb, dpbParam, node_name, NULL, cryptCallback);
 
 		if (!port)
 		{
@@ -1540,7 +1540,7 @@ void Attachment::getInfo(CheckStatusWrapper* status,
 		HalfStaticArray<UCHAR, 1024> temp;
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		UCHAR* temp_buffer = temp.getBuffer(buffer_length);
@@ -1580,7 +1580,7 @@ void Attachment::executeDyn(CheckStatusWrapper* status, ITransaction* apiTra, un
 		reset(status);
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		Rtr* transaction = remoteTransaction(apiTra);
@@ -1624,7 +1624,7 @@ void Attachment::freeClientData(CheckStatusWrapper* status, bool force)
 	try
 	{
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		try
@@ -1718,7 +1718,7 @@ void Attachment::dropDatabase(CheckStatusWrapper* status)
 		reset(status);
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		try
@@ -1881,7 +1881,7 @@ Firebird::ITransaction* Statement::execute(CheckStatusWrapper* status, Firebird:
 		Rdb* rdb = statement->rsr_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
 
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 
 		BlrFromMessage inBlr(inMetadata, dialect, port->port_protocol);
 		const unsigned int in_blr_length = inBlr.getLength();
@@ -2055,7 +2055,7 @@ ResultSet* Statement::openCursor(CheckStatusWrapper* status, Firebird::ITransact
 		Rdb* rdb = statement->rsr_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
 
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 
 		BlrFromMessage inBlr(inMetadata, dialect, port->port_protocol);
 		const unsigned int in_blr_length = inBlr.getLength();
@@ -2222,7 +2222,7 @@ ITransaction* Attachment::execute(CheckStatusWrapper* status, ITransaction* apiT
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
 
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 
 		BlrFromMessage inBlr(inMetadata, dialect, port->port_protocol);
 		const unsigned int in_blr_length = inBlr.getLength();
@@ -2403,7 +2403,7 @@ void Statement::freeClientData(CheckStatusWrapper* status, bool force)
 
 		Rdb* rdb = statement->rsr_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		fb_assert(statement->haveException() == 0);
@@ -2543,7 +2543,7 @@ Statement* Attachment::prepare(CheckStatusWrapper* status, ITransaction* apiTra,
 		// Check and validate handles, etc.
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		Rtr* transaction = NULL;
@@ -2693,7 +2693,7 @@ void Statement::getInfo(CheckStatusWrapper* status,
 
 		CHECK_HANDLE(statement, isc_bad_req_handle);
 		Rdb* rdb = statement->rsr_rdb;
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		statement->raiseException();
@@ -2725,7 +2725,7 @@ unsigned Statement::getType(CheckStatusWrapper* status)
 
 		CHECK_HANDLE(statement, isc_bad_req_handle);
 		Rdb* rdb = statement->rsr_rdb;
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		statement->raiseException();
@@ -2751,7 +2751,7 @@ unsigned Statement::getFlags(CheckStatusWrapper* status)
 
 		CHECK_HANDLE(statement, isc_bad_req_handle);
 		Rdb* rdb = statement->rsr_rdb;
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		statement->raiseException();
@@ -2796,7 +2796,7 @@ const char* Statement::getPlan(CheckStatusWrapper* status, FB_BOOLEAN detailed)
 
 		CHECK_HANDLE(statement, isc_bad_req_handle);
 		Rdb* rdb = statement->rsr_rdb;
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		statement->raiseException();
@@ -2822,7 +2822,7 @@ IMessageMetadata* Statement::getInputMetadata(CheckStatusWrapper* status)
 
 		CHECK_HANDLE(statement, isc_bad_req_handle);
 		Rdb* rdb = statement->rsr_rdb;
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		statement->raiseException();
@@ -2848,7 +2848,7 @@ IMessageMetadata* Statement::getOutputMetadata(CheckStatusWrapper* status)
 
 		CHECK_HANDLE(statement, isc_bad_req_handle);
 		Rdb* rdb = statement->rsr_rdb;
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		statement->raiseException();
@@ -2874,7 +2874,7 @@ ISC_UINT64 Statement::getAffectedRecords(CheckStatusWrapper* status)
 
 		CHECK_HANDLE(statement, isc_bad_req_handle);
 		Rdb* rdb = statement->rsr_rdb;
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		statement->raiseException();
@@ -2941,7 +2941,7 @@ int ResultSet::fetchNext(CheckStatusWrapper* status, void* buffer)
 		Rdb* rdb = statement->rsr_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
 
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 
 		BlrFromMessage outBlr(outputFormat, stmt->getDialect(), port->port_protocol);
 		unsigned int blr_length = outBlr.getLength();
@@ -3033,8 +3033,8 @@ int ResultSet::fetchNext(CheckStatusWrapper* status, void* buffer)
 				// block for the other end to read -  and so when both
 				// attempt to write simultaenously, they end up
 				// waiting indefinetly for the other end to read
-				(port->port_type != rem_port::PIPE) &&
-				(port->port_type != rem_port::XNET) &&
+				(port->port_type != RemPort::PIPE) &&
+				(port->port_type != RemPort::XNET) &&
 				// We've reached eof or there was an error
 				!statement->rsr_flags.test(Rsr::EOF_SET | Rsr::STREAM_ERR) &&
 				// No error pending
@@ -3281,7 +3281,7 @@ void Statement::setCursorName(CheckStatusWrapper* status, const char* cursor)
 		Rsr* statement = getStatement();
 		CHECK_HANDLE(statement, isc_bad_req_handle);
 		Rdb* rdb = statement->rsr_rdb;
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		statement->raiseException();
@@ -3408,7 +3408,7 @@ void ResultSet::freeClientData(CheckStatusWrapper* status, bool force)
 		Rsr* statement = stmt->getStatement();
 		CHECK_HANDLE(statement, isc_bad_req_handle);
 		Rdb* rdb = statement->rsr_rdb;
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		statement->clearException();
@@ -3517,7 +3517,7 @@ int Blob::getSegment(CheckStatusWrapper* status, unsigned int bufferLength, void
 
 		Rdb* rdb = blob->rbl_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		// Build the primary packet to get the operation started.
@@ -3737,7 +3737,7 @@ int Attachment::getSlice(CheckStatusWrapper* status, ITransaction* apiTra, ISC_Q
 		reset(status);
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		Rtr* transaction = remoteTransaction(apiTra);
@@ -3816,7 +3816,7 @@ IBlob* Attachment::openBlob(CheckStatusWrapper* status, ITransaction* apiTra, IS
 		reset(status);
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		Rtr* transaction = remoteTransaction(apiTra);
@@ -3889,7 +3889,7 @@ void Transaction::prepare(CheckStatusWrapper* status, unsigned int msg_length, c
 
 		Rdb* rdb = transaction->rtr_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		// Validate data length
@@ -3939,7 +3939,7 @@ void Blob::putSegment(CheckStatusWrapper* status, unsigned int segment_length, c
 
 		Rdb* rdb = blob->rbl_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		// Handle a blob that has been opened rather than created (this should yield an error)
@@ -4009,7 +4009,7 @@ void Attachment::putSlice(CheckStatusWrapper* status, ITransaction* apiTra, ISC_
 		reset(status);
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		Rtr* transaction = remoteTransaction(apiTra);
@@ -4063,7 +4063,7 @@ void Attachment::putSlice(CheckStatusWrapper* status, ITransaction* apiTra, ISC_
 
 
 namespace {
-	void portEventsShutdown(rem_port* port)
+	void portEventsShutdown(RemPort* port)
 	{
 		if (port->port_events_thread)
 			Thread::waitForCompletion(port->port_events_thread);
@@ -4089,7 +4089,7 @@ Firebird::IEvents* Attachment::queEvents(CheckStatusWrapper* status, Firebird::I
 		reset(status);
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		// Validate data length
@@ -4179,7 +4179,7 @@ void Request::receive(CheckStatusWrapper* status, int level, unsigned int msg_ty
 
 		Rdb* rdb = request->rrq_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		Rrq::rrq_repeat* tail = &request->rrq_rpt[msg_type];
@@ -4204,8 +4204,8 @@ void Request::receive(CheckStatusWrapper* status, int level, unsigned int msg_ty
 					// block for the other end to read -  and so when both
 					// attempt to write simultaenously, they end up
 					// waiting indefinetly for the other end to read
-					(port->port_type != rem_port::PIPE) &&	// not named pipe on NT
-					(port->port_type != rem_port::XNET) &&	// not shared memory on NT
+					(port->port_type != RemPort::PIPE) &&	// not named pipe on NT
+					(port->port_type != RemPort::XNET) &&	// not shared memory on NT
 					request->rrq_max_msg <= 1)))
 		{
 			// there's only one message type
@@ -4325,7 +4325,7 @@ Firebird::ITransaction* Attachment::reconnectTransaction(CheckStatusWrapper* sta
 		reset(status);
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		// Validate data length
@@ -4371,7 +4371,7 @@ void Request::freeClientData(CheckStatusWrapper* status, bool force)
 
 		Rdb* rdb = rq->rrq_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		try
@@ -4434,7 +4434,7 @@ void Request::getInfo(CheckStatusWrapper* status, int level,
 
 		Rdb* rdb = request->rrq_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		// Check for buffered message.  If there is, report on it locally.
@@ -4523,7 +4523,7 @@ void Transaction::rollbackRetaining(CheckStatusWrapper* status)
 
 		Rdb* rdb = transaction->rtr_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		release_object(status, rdb, op_rollback_retaining, transaction->rtr_id);
@@ -4553,7 +4553,7 @@ void Transaction::freeClientData(CheckStatusWrapper* status, bool force)
 
 		Rdb* rdb = transaction->rtr_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		try
@@ -4634,7 +4634,7 @@ int Blob::seek(CheckStatusWrapper* status, int mode, int offset)
 
 		Rdb* rdb = blob->rbl_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		PACKET* packet = &rdb->rdb_packet;
@@ -4689,7 +4689,7 @@ void Request::send(CheckStatusWrapper* status, int level, unsigned int msg_type,
 
 		Rdb* rdb = request->rrq_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		if (msg_type > request->rrq_max_msg)
@@ -4760,7 +4760,7 @@ Firebird::IService* RProvider::attachSvc(CheckStatusWrapper* status, const char*
 		if (newSpb.find(isc_spb_expected_db))
 			newSpb.getPath(refDbName);
 
-		rem_port* port = analyze(cBlock, expanded_name, flags, newSpb, spbParam, node_name, &refDbName, cryptCallback);
+		RemPort* port = analyze(cBlock, expanded_name, flags, newSpb, spbParam, node_name, &refDbName, cryptCallback);
 
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 		Rdb* rdb = port->port_context;
@@ -4841,7 +4841,7 @@ void Service::freeClientData(CheckStatusWrapper* status, bool force)
 		// Check and validate handles, etc.
 
 		CHECK_HANDLE(rdb, isc_bad_svc_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		try
@@ -4902,7 +4902,7 @@ void Service::query(CheckStatusWrapper* status,
 		// Check and validate handles, etc.
 
 		CHECK_HANDLE(rdb, isc_bad_svc_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		info(status, rdb, op_service_info, rdb->rdb_id, 0,
@@ -4937,7 +4937,7 @@ void Service::start(CheckStatusWrapper* status,
 		// Check and validate handles, etc.
 
 		CHECK_HANDLE(rdb, isc_bad_svc_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		svcstart(status, rdb, op_service_start, rdb->rdb_id, 0, spbLength, spb);
@@ -4975,7 +4975,7 @@ void Request::startAndSend(CheckStatusWrapper* status, Firebird::ITransaction* a
 		Rdb* rdb = request->rrq_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
 
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		if (msg_type > request->rrq_max_msg)
@@ -5053,7 +5053,7 @@ void Request::start(CheckStatusWrapper* status, Firebird::ITransaction* apiTra, 
 		Rdb* rdb = request->rrq_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
 
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		if (transaction->rtr_rdb != rdb)
@@ -5108,7 +5108,7 @@ Firebird::ITransaction* Attachment::startTransaction(CheckStatusWrapper* status,
 		reset(status);
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		if (/***tpbLength < 0 ||***/ (tpbLength > 0 && !tpb))
@@ -5161,7 +5161,7 @@ void Attachment::transactRequest(CheckStatusWrapper* status, ITransaction* apiTr
 		reset(status);
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		Rtr* transaction = remoteTransaction(apiTra);
@@ -5271,7 +5271,7 @@ void Transaction::getInfo(CheckStatusWrapper* status,
 
 		Rdb* rdb = transaction->rtr_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		fb_utils::getDbPathInfo(itemsLength, items, bufferLength, buffer,
@@ -5308,7 +5308,7 @@ void Request::unwind(CheckStatusWrapper* status, int level)
 
 		Rdb* rdb = request->rrq_rdb;
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 	}
 	catch (const Exception& ex)
@@ -5335,7 +5335,7 @@ void Attachment::ping(CheckStatusWrapper* status)
 		reset(status);
 
 		CHECK_HANDLE(rdb, isc_bad_db_handle);
-		rem_port* port = rdb->rdb_port;
+		RemPort* port = rdb->rdb_port;
 		RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
 
 		// Make sure protocol support action
@@ -5354,7 +5354,7 @@ void Attachment::ping(CheckStatusWrapper* status)
 	}
 }
 
-static Rvnt* add_event( rem_port* port)
+static Rvnt* add_event( RemPort* port)
 {
 /*************************************
  *
@@ -5390,7 +5390,7 @@ static Rvnt* add_event( rem_port* port)
 }
 
 
-static void add_other_params(rem_port* port, ClumpletWriter& dpb, const ParametersSet& par)
+static void add_other_params(RemPort* port, ClumpletWriter& dpb, const ParametersSet& par)
 {
 /**************************************
  *
@@ -5503,7 +5503,7 @@ static void authenticateStep0(ClntAuthBlock& cBlock)
 }
 
 
-static void secureAuthentication(ClntAuthBlock& cBlock, rem_port* port)
+static void secureAuthentication(ClntAuthBlock& cBlock, RemPort* port)
 {
 	HANDSHAKE_DEBUG(fprintf(stderr, "Cli: secureAuthentication\n"));
 
@@ -5528,7 +5528,7 @@ static void secureAuthentication(ClntAuthBlock& cBlock, rem_port* port)
 }
 
 
-static rem_port* analyze(ClntAuthBlock& cBlock, PathName& attach_name, unsigned flags,
+static RemPort* analyze(ClntAuthBlock& cBlock, PathName& attach_name, unsigned flags,
 	ClumpletWriter& pb, const ParametersSet& parSet, PathName& node_name, PathName* ref_db_name,
 	Firebird::ICryptKeyCallback* cryptCb)
 {
@@ -5550,7 +5550,7 @@ static rem_port* analyze(ClntAuthBlock& cBlock, PathName& attach_name, unsigned 
  *
  **************************************/
 
-	rem_port* port = NULL;
+	RemPort* port = NULL;
 	int inet_af = AF_UNSPEC;
 
 	cBlock.loadClnt(pb, &parSet);
@@ -5679,7 +5679,7 @@ static rem_port* analyze(ClntAuthBlock& cBlock, PathName& attach_name, unsigned 
 }
 
 
-static void clear_stmt_que(rem_port* port, Rsr* statement)
+static void clear_stmt_que(RemPort* port, Rsr* statement)
 {
 /**************************************
  *
@@ -5712,7 +5712,7 @@ static void clear_stmt_que(rem_port* port, Rsr* statement)
 	}
 }
 
-static void batch_dsql_fetch(rem_port*	port,
+static void batch_dsql_fetch(RemPort*	port,
 							 rmtque*	que_inst,
 							 USHORT		id)
 {
@@ -5762,7 +5762,7 @@ static void batch_dsql_fetch(rem_port*	port,
 	// so we have to clear the wire before the response can be received
 	// In addtion to the above we grab all the records in case of XNET as
 	// we need to clear the queue
-	const bool clear_queue = (id != statement->rsr_id || port->port_type == rem_port::XNET);
+	const bool clear_queue = (id != statement->rsr_id || port->port_type == RemPort::XNET);
 
 	statement->rsr_flags.set(Rsr::FETCHED);
 	while (true)
@@ -5861,7 +5861,7 @@ static void batch_dsql_fetch(rem_port*	port,
 }
 
 
-static void batch_gds_receive(rem_port*		port,
+static void batch_gds_receive(RemPort*		port,
 							  rmtque*	que_inst,
 							  USHORT		id)
 {
@@ -5904,7 +5904,7 @@ static void batch_gds_receive(rem_port*		port,
 
 	// always clear the complete queue for XNET, as we might
 	// have incomplete packets
-	if (id != request->rrq_id || port->port_type == rem_port::XNET)
+	if (id != request->rrq_id || port->port_type == RemPort::XNET)
 	{
 		clear_queue = true;
 	}
@@ -6006,7 +6006,7 @@ static void batch_gds_receive(rem_port*		port,
 }
 
 
-static void clear_queue(rem_port* port)
+static void clear_queue(RemPort* port)
 {
 /**************************************
  *
@@ -6030,7 +6030,7 @@ static void clear_queue(rem_port* port)
 }
 
 
-static void disconnect( rem_port* port)
+static void disconnect( RemPort* port)
 {
 /**************************************
  *
@@ -6072,7 +6072,7 @@ static void disconnect( rem_port* port)
 		// R.  Kumar
 		// M.  Romanini
 
-		if (port->port_type != rem_port::PIPE)
+		if (port->port_type != RemPort::PIPE)
 		{
 			packet->p_operation = op_disconnect;
 			port->send(packet);
@@ -6114,7 +6114,7 @@ static THREAD_ENTRY_DECLARE event_thread(THREAD_ENTRY_PARAM arg)
  *	Wait on auxilary mailbox for event notification.
  *
  **************************************/
-	rem_port* port = (rem_port*)arg;
+	RemPort* port = (RemPort*)arg;
 //	Reference portRef(*port);
 	PACKET packet;
 
@@ -6126,7 +6126,7 @@ static THREAD_ENTRY_DECLARE event_thread(THREAD_ENTRY_PARAM arg)
 
 		// read what should be an event message
 
-		rem_port* stuff = NULL;
+		RemPort* stuff = NULL;
 		P_OP operation = op_void;
 		{	// scope
 			RefMutexGuard portGuard(*port->port_sync, FB_FUNCTION);
@@ -6186,7 +6186,7 @@ static THREAD_ENTRY_DECLARE event_thread(THREAD_ENTRY_PARAM arg)
 }
 
 
-static Rvnt* find_event( rem_port* port, SLONG id)
+static Rvnt* find_event( RemPort* port, SLONG id)
 {
 /*************************************
  *
@@ -6309,7 +6309,7 @@ static bool useLegacyAuth(const char* nm, int protocol, ClumpletWriter& dpb)
 
 // Let plugins try to add data to DPB in order to avoid extra network roundtrip
 static void authFillParametersBlock(ClntAuthBlock& cBlock, ClumpletWriter& dpb,
-	const ParametersSet* tags, rem_port* port)
+	const ParametersSet* tags, RemPort* port)
 {
 	if (cBlock.authComplete)
 		return;		// Already authenticated
@@ -6386,7 +6386,7 @@ static void REMOTE_free_string(CSTRING* tmp)
 }
 #endif // NOT_USED_OR_REPLACED
 
-static void authReceiveResponse(bool havePacket, ClntAuthBlock& cBlock, rem_port* port,
+static void authReceiveResponse(bool havePacket, ClntAuthBlock& cBlock, RemPort* port,
 	Rdb* rdb, IStatus* status, PACKET* packet, bool checkKeys)
 {
 	LocalStatus ls;
@@ -6503,7 +6503,7 @@ static void authReceiveResponse(bool havePacket, ClntAuthBlock& cBlock, rem_port
 	(Arg::Gds(isc_login) << Arg::StatusVector(&s)).raise();
 }
 
-static void init(CheckStatusWrapper* status, ClntAuthBlock& cBlock, rem_port* port, P_OP op, PathName& file_name,
+static void init(CheckStatusWrapper* status, ClntAuthBlock& cBlock, RemPort* port, P_OP op, PathName& file_name,
 	ClumpletWriter& dpb, IntlParametersBlock& intlParametersBlock, ICryptKeyCallback* cryptCallback)
 {
 /**************************************
@@ -6730,7 +6730,7 @@ static void receive_after_start(Rrq* request, USHORT msg_type)
 }
 
 
-static void receive_packet(rem_port* port, PACKET* packet)
+static void receive_packet(RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -6757,7 +6757,7 @@ static void receive_packet(rem_port* port, PACKET* packet)
 }
 
 
-static void receive_packet_with_callback(rem_port* port, PACKET* packet)
+static void receive_packet_with_callback(RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -6818,7 +6818,7 @@ static void receive_packet_with_callback(rem_port* port, PACKET* packet)
 }
 
 
-static void receive_packet_noqueue(rem_port* port, PACKET* packet)
+static void receive_packet_noqueue(RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -6913,7 +6913,7 @@ static void receive_packet_noqueue(rem_port* port, PACKET* packet)
 }
 
 
-static void receive_queued_packet(rem_port* port, USHORT id)
+static void receive_queued_packet(RemPort* port, USHORT id)
 {
 /**************************************
  *
@@ -6943,7 +6943,7 @@ static void receive_queued_packet(rem_port* port, USHORT id)
 }
 
 
-static void enqueue_receive(rem_port* port,
+static void enqueue_receive(RemPort* port,
 							t_rmtque_fn fn,
 							Rdb* rdb,
 							void* parm,
@@ -6979,7 +6979,7 @@ static void enqueue_receive(rem_port* port,
 }
 
 
-static void dequeue_receive( rem_port* port)
+static void dequeue_receive( RemPort* port)
 {
 /**************************************
  *
@@ -7285,7 +7285,7 @@ static void send_blob(CheckStatusWrapper*		status,
 }
 
 
-static void send_packet(rem_port* port, PACKET* packet)
+static void send_packet(RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -7334,7 +7334,7 @@ static void send_packet(rem_port* port, PACKET* packet)
 	}
 }
 
-static void send_partial_packet(rem_port* port, PACKET* packet)
+static void send_partial_packet(RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -7380,7 +7380,7 @@ static void send_partial_packet(rem_port* port, PACKET* packet)
 	}
 }
 
-static void server_death(rem_port* port)
+static void server_death(RemPort* port)
 {
 /**************************************
  *
@@ -7523,7 +7523,7 @@ void Attachment::cancelOperation(CheckStatusWrapper* status, int kind)
 			return;
 		}
 
-		if (port->port_protocol < PROTOCOL_VERSION12 || port->port_type != rem_port::INET)
+		if (port->port_protocol < PROTOCOL_VERSION12 || port->port_type != RemPort::INET)
 		{
 			unsupported();
 		}
@@ -7796,7 +7796,7 @@ Firebird::ICryptKey* ClntAuthBlock::newKey(CheckStatusWrapper* status)
 	return NULL;
 }
 
-void ClntAuthBlock::tryNewKeys(rem_port* port)
+void ClntAuthBlock::tryNewKeys(RemPort* port)
 {
 	for (unsigned k = 0; k < cryptKeys.getCount(); ++k)
 	{

@@ -29,12 +29,12 @@
 #include "../common/classes/fb_string.h"
 
 #ifdef NO_PORT
-#define rem_port void
+#define RemPort void
 #endif
 
-rem_port* XNET_analyze(ClntAuthBlock*, const Firebird::PathName&, bool, Firebird::RefPtr<const Config>*,
+RemPort* XNET_analyze(ClntAuthBlock*, const Firebird::PathName&, bool, Firebird::RefPtr<const Config>*,
 	const Firebird::PathName*);
-rem_port* XNET_connect(struct packet*, USHORT, Firebird::RefPtr<const Config>*);
-rem_port* XNET_reconnect(ULONG);
+RemPort* XNET_connect(struct packet*, USHORT, Firebird::RefPtr<const Config>*);
+RemPort* XNET_reconnect(ULONG);
 
 #endif // REMOTE_XNET_PROTO_H

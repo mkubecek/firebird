@@ -121,7 +121,7 @@ static THREAD_ENTRY_DECLARE xnet_connect_wait_thread(THREAD_ENTRY_PARAM);
 static THREAD_ENTRY_DECLARE start_connections_thread(THREAD_ENTRY_PARAM);
 static THREAD_ENTRY_DECLARE process_connection_thread(THREAD_ENTRY_PARAM);
 static HANDLE parse_args(LPCSTR, USHORT*);
-static void service_connection(rem_port*);
+static void service_connection(RemPort*);
 static int wait_threads(const int reason, const int mask, void* arg);
 
 static HINSTANCE hInst;
@@ -279,7 +279,7 @@ int WINAPI WinMain(HINSTANCE hThisInst, HINSTANCE /*hPrevInst*/, LPSTR lpszArgs,
 
 	if (connection_handle != INVALID_HANDLE_VALUE)
 	{
-		rem_port* port = 0;
+		RemPort* port = 0;
 
 		try
 		{
@@ -373,7 +373,7 @@ THREAD_ENTRY_DECLARE process_connection_thread(THREAD_ENTRY_PARAM arg)
  **************************************/
 	ThreadCounter counter;
 
-	service_connection((rem_port*) arg);
+	service_connection((RemPort*) arg);
 	return 0;
 }
 
@@ -393,7 +393,7 @@ static THREAD_ENTRY_DECLARE inet_connect_wait_thread(THREAD_ENTRY_PARAM)
 
 	while (!server_shutdown)
 	{
-		rem_port* port = NULL;
+		RemPort* port = NULL;
 		try
 		{
 			port = INET_connect(protocol_inet, NULL, server_flag, 0, NULL);
@@ -441,7 +441,7 @@ static THREAD_ENTRY_DECLARE wnet_connect_wait_thread(THREAD_ENTRY_PARAM)
 
 	while (!server_shutdown)
 	{
-		rem_port* port = NULL;
+		RemPort* port = NULL;
 
 		try
 		{
@@ -492,7 +492,7 @@ static THREAD_ENTRY_DECLARE xnet_connect_wait_thread(THREAD_ENTRY_PARAM)
 
 	while (!server_shutdown)
 	{
-		rem_port* port = NULL;
+		RemPort* port = NULL;
 
 		try
 		{
@@ -527,7 +527,7 @@ static THREAD_ENTRY_DECLARE xnet_connect_wait_thread(THREAD_ENTRY_PARAM)
 }
 
 
-static void service_connection(rem_port* port)
+static void service_connection(RemPort* port)
 {
 /**************************************
  *

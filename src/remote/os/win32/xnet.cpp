@@ -53,22 +53,22 @@
 using namespace Firebird;
 using namespace Remote;
 
-static bool accept_connection(rem_port*, const P_CNCT*);
-static rem_port* alloc_port(rem_port*, UCHAR*, ULONG, UCHAR*, ULONG);
-static rem_port* aux_connect(rem_port*, PACKET*);
-static rem_port* aux_request(rem_port*, PACKET*);
+static bool accept_connection(RemPort*, const P_CNCT*);
+static RemPort* alloc_port(RemPort*, UCHAR*, ULONG, UCHAR*, ULONG);
+static RemPort* aux_connect(RemPort*, PACKET*);
+static RemPort* aux_request(RemPort*, PACKET*);
 
 static void cleanup_comm(XCC);
-static void cleanup_port(rem_port*);
-static void disconnect(rem_port*);
-static void force_close(rem_port*);
+static void cleanup_port(RemPort*);
+static void disconnect(RemPort*);
+static void force_close(RemPort*);
 static int cleanup_ports(const int, const int, void* arg);
 
-static rem_port* receive(rem_port*, PACKET*);
-static int send_full(rem_port*, PACKET*);
-static int send_partial(rem_port*, PACKET*);
+static RemPort* receive(RemPort*, PACKET*);
+static int send_full(RemPort*, PACKET*);
+static int send_partial(RemPort*, PACKET*);
 
-static int xdrxnet_create(XDR*, rem_port*, UCHAR*, USHORT, xdr_op);
+static int xdrxnet_create(XDR*, RemPort*, UCHAR*, USHORT, xdr_op);
 
 static bool_t xnet_getbytes(XDR*, SCHAR*, u_int);
 static bool_t xnet_putbytes(XDR*, const SCHAR*, u_int);
@@ -148,8 +148,8 @@ namespace Remote
 		{
 		}
 
-		rem_port* connect_client(PACKET*, const RefPtr<const Config>*);
-		void server_shutdown(rem_port* port);
+		RemPort* connect_client(PACKET*, const RefPtr<const Config>*);
+		void server_shutdown(RemPort* port);
 
 	private:
 		bool connect_init();
@@ -170,8 +170,8 @@ namespace Remote
 			xnet_shutdown = true;
 		}
 
-		rem_port* connect_server(USHORT);
-		rem_port* reconnect(ULONG client_pid);
+		RemPort* connect_server(USHORT);
+		RemPort* reconnect(ULONG client_pid);
 
 	private:
 		void make_map(ULONG, ULONG, FILE_ID*, CADDR_T*);
@@ -179,7 +179,7 @@ namespace Remote
 		bool server_init(USHORT);
 		XPM get_free_slot(ULONG*, ULONG*, ULONG*);
 		bool fork(ULONG, USHORT, ULONG*);
-		rem_port* get_server_port(ULONG, XPM, ULONG, ULONG, ULONG);
+		RemPort* get_server_port(ULONG, XPM, ULONG, ULONG, ULONG);
 
 		ULONG global_pages_per_slot;
 		ULONG global_slots_per_map;
@@ -213,7 +213,7 @@ inline void XnetEndPoint::make_event_name(char* buffer, size_t size, const char*
 }
 
 
-static void xnet_error(rem_port*, ISC_STATUS, int);
+static void xnet_error(RemPort*, ISC_STATUS, int);
 
 static void xnet_log_error(const char* err_msg, const Exception& ex)
 {
@@ -235,7 +235,7 @@ static void xnet_log_error(const char* err_msg)
 #define ERR_STR(str) (str)
 #endif
 
-rem_port* XNET_analyze(ClntAuthBlock* cBlock,
+RemPort* XNET_analyze(ClntAuthBlock* cBlock,
 					   const PathName& file_name,
 					   bool uv_flag,
 					   RefPtr<const Config>* config,
@@ -318,7 +318,7 @@ rem_port* XNET_analyze(ClntAuthBlock* cBlock,
 
 	// If we can't talk to a server, punt. Let somebody else generate an error.
 
-	rem_port* port = NULL;
+	RemPort* port = NULL;
 	try
 	{
 		port = XNET_connect(packet, 0, config);
@@ -403,7 +403,7 @@ rem_port* XNET_analyze(ClntAuthBlock* cBlock,
 }
 
 
-rem_port* XNET_connect(PACKET* packet,
+RemPort* XNET_connect(PACKET* packet,
 					   USHORT flag,
 					   Firebird::RefPtr<const Config>* config)
 {
@@ -433,12 +433,12 @@ rem_port* XNET_connect(PACKET* packet,
 }
 
 
-rem_port* XNET_reconnect(ULONG client_pid)
+RemPort* XNET_reconnect(ULONG client_pid)
 {
 	return xnet_server->reconnect(client_pid);
 }
 
-rem_port* XnetServerEndPoint::reconnect(ULONG client_pid)
+RemPort* XnetServerEndPoint::reconnect(ULONG client_pid)
 {
 /**************************************
  *
@@ -451,7 +451,7 @@ rem_port* XnetServerEndPoint::reconnect(ULONG client_pid)
  *
  **************************************/
 
-	rem_port* port = NULL;
+	RemPort* port = NULL;
 	XPM xpm = NULL;
 
 	// Initialize server-side IPC endpoint to a value we know we have permissions to listen at
@@ -622,7 +622,7 @@ void XnetEndPoint::connect_fini()
 }
 
 
-static bool accept_connection(rem_port* port, const P_CNCT* cnct)
+static bool accept_connection(RemPort* port, const P_CNCT* cnct)
 {
 /**************************************
  *
@@ -669,7 +669,7 @@ static bool accept_connection(rem_port* port, const P_CNCT* cnct)
 }
 
 
-static rem_port* alloc_port(rem_port* parent,
+static RemPort* alloc_port(RemPort* parent,
 							UCHAR* send_buffer,
 							ULONG send_length,
 							UCHAR* receive_buffer,
@@ -686,7 +686,7 @@ static rem_port* alloc_port(rem_port* parent,
  *	and initialize input and output XDR streams.
  *
  **************************************/
-	rem_port* const port = FB_NEW rem_port(rem_port::XNET, 0);
+	RemPort* const port = FB_NEW RemPort(RemPort::XNET, 0);
 
 	TEXT buffer[BUFFER_TINY];
 	ISC_get_host(buffer, sizeof(buffer));
@@ -720,7 +720,7 @@ static rem_port* alloc_port(rem_port* parent,
 }
 
 
-static rem_port* aux_connect(rem_port* port, PACKET* /*packet*/)
+static RemPort* aux_connect(RemPort* port, PACKET* /*packet*/)
 {
 /**************************************
  *
@@ -813,7 +813,7 @@ static rem_port* aux_connect(rem_port* port, PACKET* /*packet*/)
 			((UCHAR*) xcc->xcc_mapped_addr + sizeof(struct xps) + (XNET_EVENT_SPACE));
 
 		// alloc new port and link xcc to it
-		rem_port* const new_port = alloc_port(NULL,
+		RemPort* const new_port = alloc_port(NULL,
 											  channel_c2s_client_ptr, xcc->xcc_send_channel->xch_size,
 											  channel_s2c_client_ptr, xcc->xcc_recv_channel->xch_size);
 
@@ -851,7 +851,7 @@ static rem_port* aux_connect(rem_port* port, PACKET* /*packet*/)
 }
 
 
-static rem_port* aux_request(rem_port* port, PACKET* packet)
+static RemPort* aux_request(RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -944,7 +944,7 @@ static rem_port* aux_request(rem_port* port, PACKET* packet)
 			((UCHAR*) xcc->xcc_mapped_addr + sizeof(struct xps));
 
 		// alloc new port and link xcc to it
-		rem_port* const new_port = alloc_port(NULL,
+		RemPort* const new_port = alloc_port(NULL,
 											  channel_s2c_client_ptr, xcc->xcc_send_channel->xch_size,
 											  channel_c2s_client_ptr, xcc->xcc_recv_channel->xch_size);
 
@@ -1056,7 +1056,7 @@ void XnetEndPoint::cleanup_mapping(XPM xpm)
 }
 
 
-static void cleanup_port(rem_port* port)
+static void cleanup_port(RemPort* port)
 {
 /**************************************
  *
@@ -1089,7 +1089,7 @@ static void raise_lostconn_or_syserror(const char* msg)
 }
 
 
-rem_port* XnetClientEndPoint::connect_client(PACKET* packet, const RefPtr<const Config>* config)
+RemPort* XnetClientEndPoint::connect_client(PACKET* packet, const RefPtr<const Config>* config)
 {
 /**************************************
  *
@@ -1333,7 +1333,7 @@ rem_port* XnetClientEndPoint::connect_client(PACKET* packet, const RefPtr<const 
 		UCHAR* const channel_c2s_client_ptr = start_ptr;
 		UCHAR* const channel_s2c_client_ptr = start_ptr + avail;
 
-		rem_port* const port =
+		RemPort* const port =
 			alloc_port(NULL,
 					   channel_c2s_client_ptr, xcc->xcc_send_channel->xch_size,
 					   channel_s2c_client_ptr, xcc->xcc_recv_channel->xch_size);
@@ -1367,7 +1367,7 @@ rem_port* XnetClientEndPoint::connect_client(PACKET* packet, const RefPtr<const 
 }
 
 
-rem_port* XnetServerEndPoint::connect_server(USHORT flag)
+RemPort* XnetServerEndPoint::connect_server(USHORT flag)
 {
 /**************************************
  *
@@ -1427,7 +1427,7 @@ rem_port* XnetServerEndPoint::connect_server(USHORT flag)
 				presponse->slot_num = slot_num;
 				presponse->timestamp = timestamp;
 
-				rem_port* port = get_server_port(client_pid, xpm, map_num, slot_num, timestamp);
+				RemPort* port = get_server_port(client_pid, xpm, map_num, slot_num, timestamp);
 
 				SetEvent(xnet_response_event);
 
@@ -1468,7 +1468,7 @@ rem_port* XnetServerEndPoint::connect_server(USHORT flag)
 }
 
 
-static void disconnect(rem_port* port)
+static void disconnect(RemPort* port)
 {
 /**************************************
  *
@@ -1496,7 +1496,7 @@ static void disconnect(rem_port* port)
 }
 
 
-static void force_close(rem_port* port)
+static void force_close(RemPort* port)
 {
 /**************************************
  *
@@ -1508,10 +1508,10 @@ static void force_close(rem_port* port)
  *	Forcibly close remote connection.
  *
  **************************************/
-	if (port->port_state != rem_port::PENDING || !port->port_xcc)
+	if (port->port_state != RemPort::PENDING || !port->port_xcc)
 		return;
 
-	port->port_state = rem_port::BROKEN;
+	port->port_state = RemPort::BROKEN;
 
 	XCC xcc = port->port_xcc;
 
@@ -1563,7 +1563,7 @@ static int cleanup_ports(const int, const int, void* /*arg*/)
 }
 
 
-static rem_port* receive( rem_port* main_port, PACKET* packet)
+static RemPort* receive( RemPort* main_port, PACKET* packet)
 {
 /**************************************
  *
@@ -1594,7 +1594,7 @@ static rem_port* receive( rem_port* main_port, PACKET* packet)
 }
 
 
-static int send_full( rem_port* port, PACKET* packet)
+static int send_full( RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -1623,7 +1623,7 @@ static int send_full( rem_port* port, PACKET* packet)
 }
 
 
-static int send_partial( rem_port* port, PACKET* packet)
+static int send_partial( RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -1643,7 +1643,7 @@ static int send_partial( rem_port* port, PACKET* packet)
 	return xdr_protocol(&port->port_send, packet);
 }
 
-void XnetClientEndPoint::server_shutdown(rem_port* port)
+void XnetClientEndPoint::server_shutdown(RemPort* port)
 {
 /**************************************
  *
@@ -1685,7 +1685,7 @@ void XnetClientEndPoint::server_shutdown(rem_port* port)
 }
 
 
-static int xdrxnet_create(XDR* xdrs, rem_port* port, UCHAR* buffer, USHORT length, xdr_op x_op)
+static int xdrxnet_create(XDR* xdrs, RemPort* port, UCHAR* buffer, USHORT length, xdr_op x_op)
 {
 /**************************************
  *
@@ -1710,7 +1710,7 @@ static int xdrxnet_create(XDR* xdrs, rem_port* port, UCHAR* buffer, USHORT lengt
 }
 
 
-static void xnet_gen_error (rem_port* port, const Arg::StatusVector& v)
+static void xnet_gen_error (RemPort* port, const Arg::StatusVector& v)
 {
 /**************************************
  *
@@ -1724,12 +1724,12 @@ static void xnet_gen_error (rem_port* port, const Arg::StatusVector& v)
  *	save the status vector strings in a permanent place.
  *
  **************************************/
-	port->port_state = rem_port::BROKEN;
+	port->port_state = RemPort::BROKEN;
 	v.raise();
 }
 
 
-static void xnet_error(rem_port* port, ISC_STATUS operation, int status)
+static void xnet_error(RemPort* port, ISC_STATUS operation, int status)
 {
 /**************************************
  *
@@ -1745,7 +1745,7 @@ static void xnet_error(rem_port* port, ISC_STATUS operation, int status)
  **************************************/
 	if (status)
 	{
-		if (port->port_state != rem_port::BROKEN)
+		if (port->port_state != RemPort::BROKEN)
 		{
 			gds__log("XNET/xnet_error: errno = %d", status);
 		}
@@ -1774,7 +1774,7 @@ static bool_t xnet_getbytes(XDR* xdrs, SCHAR* buff, u_int count)
 
 	SLONG bytecount = count;
 
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 	const bool portServer = (port->port_flags & PORT_server);
 	XCC xcc = port->port_xcc;
 	XPM xpm = xcc->xcc_xpm;
@@ -1838,7 +1838,7 @@ static bool_t xnet_putbytes(XDR* xdrs, const SCHAR* buff, u_int count)
  **************************************/
 	SLONG bytecount = count;
 
-	rem_port* port = (rem_port*)xdrs->x_public;
+	RemPort* port = (RemPort*)xdrs->x_public;
 	const bool portServer = (port->port_flags & PORT_server);
 	XCC xcc = port->port_xcc;
 	XCH xch = xcc->xcc_send_channel;
@@ -1953,7 +1953,7 @@ static bool_t xnet_read(XDR* xdrs)
  *	Read a buffer full of data.
  *
  **************************************/
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 	const bool portServer = (port->port_flags & PORT_server);
 	XCC xcc = port->port_xcc;
 	XCH xch = xcc->xcc_recv_channel;
@@ -2038,7 +2038,7 @@ static bool_t xnet_write(XDR* xdrs)
  *  filled and ready for reading.
  *
  **************************************/
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 	XCC xcc = port->port_xcc;
 	XCH xch = xcc->xcc_send_channel;
 
@@ -2405,7 +2405,7 @@ bool XnetServerEndPoint::fork(ULONG client_pid, USHORT flag, ULONG* forked_pid)
 }
 
 
-rem_port* XnetServerEndPoint::get_server_port(ULONG client_pid,
+RemPort* XnetServerEndPoint::get_server_port(ULONG client_pid,
 								 XPM xpm,
 								 ULONG map_num,
 								 ULONG slot_num,
@@ -2418,10 +2418,10 @@ rem_port* XnetServerEndPoint::get_server_port(ULONG client_pid,
  **************************************
  *
  * Functional description
- *	Allocates new rem_port for server side communication.
+ *	Allocates new RemPort for server side communication.
  *
  **************************************/
-	rem_port* port = NULL;
+	RemPort* port = NULL;
 	TEXT name_buffer[BUFFER_TINY];
 
 	// allocate a communications control structure and fill it in

@@ -181,7 +181,7 @@ void xdr_debug_memory(XDR* xdrs,
  *	status vector.
  *
  **************************************/
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 	fb_assert(port != 0);
 	fb_assert(port->port_header.blk_type == type_port);
 
@@ -647,7 +647,7 @@ bool_t xdr_protocol(XDR* xdrs, PACKET* p)
 			MAP(xdr_short, reinterpret_cast<SSHORT&>(sqldata->p_sqldata_out_message_number));
 		}
 		{ // scope
-			rem_port* port = (rem_port*) xdrs->x_public;
+			RemPort* port = (RemPort*) xdrs->x_public;
 			if (port->port_protocol >= PROTOCOL_STMT_TOUT)
 				MAP(xdr_u_long, sqldata->p_sqldata_timeout);
 		}
@@ -807,7 +807,7 @@ bool_t xdr_protocol(XDR* xdrs, PACKET* p)
 			P_CRYPT_CALLBACK* cc = &p->p_cc;
 			MAP(xdr_cstring, cc->p_cc_data);
 
-			rem_port* port = (rem_port*) xdrs->x_public;
+			RemPort* port = (RemPort*) xdrs->x_public;
 			// If the protocol is 0 we are in the process of establishing a connection.
 			// crypt_key_callback at this phaze means server protocol is at least P15
 			if (port->port_protocol >= PROTOCOL_VERSION14 || port->port_protocol == 0)
@@ -1059,7 +1059,7 @@ static bool_t xdr_debug_packet( XDR* xdrs, enum xdr_op xop, PACKET* packet)
  *	entering/removing from a port's packet tracking vector.
  *
  **************************************/
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 	fb_assert(port != 0);
 	fb_assert(port->port_header.blk_type == type_port);
 
@@ -1178,7 +1178,7 @@ static bool_t xdr_message( XDR* xdrs, RMessage* message, const rem_fmt* format)
 	if (xdrs->x_op == XDR_FREE)
 		return TRUE;
 
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 
 	if (!message || !format)
 		return FALSE;
@@ -1217,7 +1217,7 @@ static bool_t xdr_packed_message( XDR* xdrs, RMessage* message, const rem_fmt* f
 	if (xdrs->x_op == XDR_FREE)
 		return TRUE;
 
-	const rem_port* const port = (rem_port*) xdrs->x_public;
+	const RemPort* const port = (RemPort*) xdrs->x_public;
 
 	if (!message || !format)
 		return FALSE;
@@ -1352,7 +1352,7 @@ static bool_t xdr_request(XDR* xdrs,
 	if (xdrs->x_op == XDR_FREE)
 		return TRUE;
 
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 
 	if (request_id >= port->port_objects.getCount())
 		return FALSE;
@@ -1459,7 +1459,7 @@ static bool_t xdr_slice(XDR* xdrs, lstring* slice, /*USHORT sdl_length,*/ const 
 	}
 
 	const dsc* desc = &info.sdl_info_element;
-	const rem_port* port = (rem_port*) xdrs->x_public;
+	const RemPort* port = (RemPort*) xdrs->x_public;
 	BLOB_PTR* p = (BLOB_PTR*) slice->lstr_address;
 	ULONG n;
 
@@ -1512,7 +1512,7 @@ static bool_t xdr_sql_blr(XDR* xdrs,
 	if (xdrs->x_op == XDR_FREE)
 		return TRUE;
 
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 
 	Rsr* statement;
 
@@ -1613,7 +1613,7 @@ static bool_t xdr_sql_message( XDR* xdrs, SLONG statement_id)
 	if (xdrs->x_op == XDR_FREE)
 		return TRUE;
 
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 
 	if (statement_id >= 0)
 	{
@@ -1777,7 +1777,7 @@ static bool_t xdr_trrq_blr(XDR* xdrs, CSTRING* blr)
 	if (xdrs->x_op == XDR_FREE || xdrs->x_op == XDR_ENCODE)
 		return TRUE;
 
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 	Rpr* procedure = port->port_rpr;
 	if (!procedure)
 		procedure = port->port_rpr = FB_NEW Rpr;
@@ -1841,7 +1841,7 @@ static bool_t xdr_trrq_message( XDR* xdrs, USHORT msg_type)
 	if (xdrs->x_op == XDR_FREE)
 		return TRUE;
 
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 	Rpr* procedure = port->port_rpr;
 
 	if (msg_type == 1)
@@ -1865,7 +1865,7 @@ static void reset_statement( XDR* xdrs, SSHORT statement_id)
  **************************************/
 
 	Rsr* statement = NULL;
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 
 	// if the statement ID is -1, this seems to indicate that we are
 	// re-executing the previous statement.  This is not a

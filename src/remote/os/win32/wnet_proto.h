@@ -26,10 +26,10 @@
 
 #include "../common/classes/fb_string.h"
 
-rem_port*	WNET_analyze(ClntAuthBlock*, const Firebird::PathName&, const TEXT*, bool,
+RemPort*	WNET_analyze(ClntAuthBlock*, const Firebird::PathName&, const TEXT*, bool,
 	Firebird::RefPtr<const Config>*, const Firebird::PathName*);
-rem_port*	WNET_connect(const TEXT*, struct packet*, USHORT, Firebird::RefPtr<const Config>*);
-rem_port*	WNET_reconnect(HANDLE);
+RemPort*	WNET_connect(const TEXT*, struct packet*, USHORT, Firebird::RefPtr<const Config>*);
+RemPort*	WNET_reconnect(HANDLE);
 
 
 #endif // REMOTE_WNET_PROTO_H

@@ -41,19 +41,19 @@ namespace Remote
 	typedef Auth::ParsedList ParsedList;
 }
 
-struct rem_port;
+struct RemPort;
 struct rem_fmt;
 struct Rdb;
-typedef bool PacketReceive(rem_port*, UCHAR*, SSHORT, SSHORT*);
-typedef bool PacketSend(rem_port*, const SCHAR*, SSHORT);
+typedef bool PacketReceive(RemPort*, UCHAR*, SSHORT, SSHORT*);
+typedef bool PacketSend(RemPort*, const SCHAR*, SSHORT);
 typedef bool ProtoWrite(XDR*);
 enum LegacyPlugin {PLUGIN_NEW = 0, PLUGIN_LEGACY, PLUGIN_TRUSTED};
 
 void		REMOTE_cleanup_transaction (struct Rtr *);
-USHORT		REMOTE_compute_batch_size (rem_port*, USHORT, P_OP, const rem_fmt*);
-void		REMOTE_get_timeout_params(rem_port* port, Firebird::ClumpletReader* pb);
+USHORT		REMOTE_compute_batch_size (RemPort*, USHORT, P_OP, const rem_fmt*);
+void		REMOTE_get_timeout_params(RemPort* port, Firebird::ClumpletReader* pb);
 struct Rrq*	REMOTE_find_request (struct Rrq *, USHORT);
-void		REMOTE_free_packet (rem_port*, struct packet *, bool = false);
+void		REMOTE_free_packet (RemPort*, struct packet *, bool = false);
 struct rem_str*	REMOTE_make_string (const SCHAR*);
 void		REMOTE_release_messages (struct RMessage*);
 void		REMOTE_release_request (struct Rrq *);
@@ -64,7 +64,7 @@ LegacyPlugin REMOTE_legacy_auth(const char* nm, int protocol);
 Firebird::RefPtr<const Config> REMOTE_get_config(const Firebird::PathName* dbName,
 	const Firebird::string* dpb_config = NULL);
 void		REMOTE_check_response(Firebird::IStatus* warning, Rdb* rdb, PACKET* packet, bool checkKeys = false);
-bool		REMOTE_inflate(rem_port*, PacketReceive*, UCHAR*, SSHORT, SSHORT*);
+bool		REMOTE_inflate(RemPort*, PacketReceive*, UCHAR*, SSHORT, SSHORT*);
 bool		REMOTE_deflate(XDR*, ProtoWrite*, PacketSend*, bool flash);
 
 static inline void REMOTE_parseList(Remote::ParsedList& parsed, const Firebird::PathName& list)

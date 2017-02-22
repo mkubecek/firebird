@@ -41,7 +41,7 @@
 #include "../common/classes/ImplementHelper.h"
 
 #ifdef DEV_BUILD
-Firebird::AtomicCounter rem_port::portCounter;
+Firebird::AtomicCounter RemPort::portCounter;
 #endif
 
 #ifdef REMOTE_DEBUG
@@ -170,7 +170,7 @@ void REMOTE_cleanup_transaction( Rtr* transaction)
 }
 
 
-USHORT REMOTE_compute_batch_size(rem_port* port,
+USHORT REMOTE_compute_batch_size(RemPort* port,
 								 USHORT buffer_used, P_OP op_code,
 								 const rem_fmt* format)
 {
@@ -307,7 +307,7 @@ Rrq* REMOTE_find_request(Rrq* request, USHORT level)
 }
 
 
-void REMOTE_free_packet( rem_port* port, PACKET * packet, bool partial)
+void REMOTE_free_packet( RemPort* port, PACKET * packet, bool partial)
 {
 /**************************************
  *
@@ -326,7 +326,7 @@ void REMOTE_free_packet( rem_port* port, PACKET * packet, bool partial)
 	{
 		xdrmem_create(&xdr, reinterpret_cast<char*>(packet), sizeof(PACKET), XDR_FREE);
 		xdr.x_public = (caddr_t) port;
-		xdr.x_local = (port->port_type == rem_port::XNET);
+		xdr.x_local = (port->port_type == RemPort::XNET);
 #ifdef DEV_BUILD
 		xdr.x_client = false;
 #endif
@@ -354,7 +354,7 @@ void REMOTE_free_packet( rem_port* port, PACKET * packet, bool partial)
 }
 
 
-void REMOTE_get_timeout_params(rem_port* port, Firebird::ClumpletReader* pb)
+void REMOTE_get_timeout_params(RemPort* port, Firebird::ClumpletReader* pb)
 {
 /**************************************
  *
@@ -590,7 +590,7 @@ void REMOTE_reset_statement( Rsr* statement)
 
 // TMN: Beginning of C++ port - ugly but a start
 
-void rem_port::linkParent(rem_port* const parent)
+void RemPort::linkParent(RemPort* const parent)
 {
 	fb_assert(parent);
 	fb_assert(this->port_parent == NULL);
@@ -604,17 +604,17 @@ void rem_port::linkParent(rem_port* const parent)
 	parent->port_clients = parent->port_next = this;
 }
 
-const Firebird::RefPtr<const Config>& rem_port::getPortConfig() const
+const Firebird::RefPtr<const Config>& RemPort::getPortConfig() const
 {
 	return port_config.hasData() ? port_config : Config::getDefaultConfig();
 }
 
-Firebird::RefPtr<const Config> rem_port::getPortConfig()
+Firebird::RefPtr<const Config> RemPort::getPortConfig()
 {
 	return port_config.hasData() ? port_config : Config::getDefaultConfig();
 }
 
-void rem_port::unlinkParent()
+void RemPort::unlinkParent()
 {
 	if (this->port_parent == NULL)
 		return;
@@ -623,7 +623,7 @@ void rem_port::unlinkParent()
 	bool found = false;
 #endif
 
-	for (rem_port** ptr = &this->port_parent->port_clients; *ptr; ptr = &(*ptr)->port_next)
+	for (RemPort** ptr = &this->port_parent->port_clients; *ptr; ptr = &(*ptr)->port_next)
 	{
 		if (*ptr == this)
 		{
@@ -648,32 +648,32 @@ void rem_port::unlinkParent()
 	this->port_parent = NULL;
 }
 
-bool rem_port::accept(p_cnct* cnct)
+bool RemPort::accept(p_cnct* cnct)
 {
 	return (*this->port_accept)(this, cnct);
 }
 
-void rem_port::disconnect()
+void RemPort::disconnect()
 {
 	(*this->port_disconnect)(this);
 }
 
-void rem_port::force_close()
+void RemPort::force_close()
 {
 	(*this->port_force_close)(this);
 }
 
-rem_port* rem_port::receive(PACKET* pckt)
+RemPort* RemPort::receive(PACKET* pckt)
 {
 	return (*this->port_receive_packet)(this, pckt);
 }
 
-bool rem_port::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port)
+bool RemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port)
 {
 	return (*this->port_select_multi)(this, buffer, bufsize, length, port);
 }
 
-void rem_port::abort_aux_connection()
+void RemPort::abort_aux_connection()
 {
 	if (this->port_abort_aux_connection)
 	{
@@ -681,27 +681,27 @@ void rem_port::abort_aux_connection()
 	}
 }
 
-XDR_INT rem_port::send(PACKET* pckt)
+XDR_INT RemPort::send(PACKET* pckt)
 {
 	return (*this->port_send_packet)(this, pckt);
 }
 
-XDR_INT rem_port::send_partial(PACKET* pckt)
+XDR_INT RemPort::send_partial(PACKET* pckt)
 {
 	return (*this->port_send_partial)(this, pckt);
 }
 
-rem_port* rem_port::connect(PACKET* pckt)
+RemPort* RemPort::connect(PACKET* pckt)
 {
 	return (*this->port_connect)(this, pckt);
 }
 
-rem_port* rem_port::request(PACKET* pckt)
+RemPort* RemPort::request(PACKET* pckt)
 {
 	return (*this->port_request)(this, pckt);
 }
 
-void rem_port::auxAcceptError(PACKET* packet)
+void RemPort::auxAcceptError(PACKET* packet)
 {
 	if (port_protocol >= PROTOCOL_VERSION13)
 	{
@@ -745,7 +745,7 @@ bool_t REMOTE_getbytes (XDR* xdrs, SCHAR* buff, u_int count)
 			bytecount -= xdrs->x_handy;
 			xdrs->x_handy = 0;
 		}
-		rem_port* port = (rem_port*) xdrs->x_public;
+		RemPort* port = (RemPort*) xdrs->x_public;
 		Firebird::RefMutexGuard queGuard(*port->port_que_sync, FB_FUNCTION);
 		if (port->port_qoffset >= port->port_queue.getCount())
 		{
@@ -763,7 +763,7 @@ bool_t REMOTE_getbytes (XDR* xdrs, SCHAR* buff, u_int count)
 	return TRUE;
 }
 
-void PortsCleanup::registerPort(rem_port* port)
+void PortsCleanup::registerPort(RemPort* port)
 {
 	Firebird::MutexLockGuard guard(m_mutex, FB_FUNCTION);
 	if (!m_ports)
@@ -775,7 +775,7 @@ void PortsCleanup::registerPort(rem_port* port)
 	m_ports->add(port);
 }
 
-void PortsCleanup::unRegisterPort(rem_port* port)
+void PortsCleanup::unRegisterPort(RemPort* port)
 {
 	Firebird::MutexLockGuard guard(m_mutex, FB_FUNCTION);
 
@@ -795,8 +795,8 @@ void PortsCleanup::closePorts()
 
 	if (m_ports)
 	{
-		rem_port* const* ptr = m_ports->begin();
-		const rem_port* const* end = m_ports->end();
+		RemPort* const* ptr = m_ports->begin();
+		const RemPort* const* end = m_ports->end();
 		for (; ptr < end; ptr++) {
 			(*ptr)->force_close();
 		}
@@ -867,7 +867,7 @@ void Rsr::saveException(const Firebird::Exception& ex, bool overwrite)
 	}
 }
 
-Firebird::string rem_port::getRemoteId() const
+Firebird::string RemPort::getRemoteId() const
 {
 	fb_assert(port_protocol_id.hasData());
 	Firebird::string id = port_protocol_id;
@@ -1056,7 +1056,7 @@ void REMOTE_check_response(Firebird::IStatus* warning, Rdb* rdb, PACKET* packet,
 	rdb->rdb_port->checkResponse(warning, packet, checkKeys);
 }
 
-void rem_port::checkResponse(Firebird::IStatus* warning, PACKET* packet, bool checkKeys)
+void RemPort::checkResponse(Firebird::IStatus* warning, PACKET* packet, bool checkKeys)
 {
 /**************************************
  *
@@ -1142,7 +1142,7 @@ static void setCStr(CSTRING& to, const char* from)
 	to.cstr_allocated = 0;
 }
 
-void rem_port::addServerKeys(CSTRING* passedStr)
+void RemPort::addServerKeys(CSTRING* passedStr)
 {
 	Firebird::ClumpletReader newKeys(Firebird::ClumpletReader::UnTagged,
 									 passedStr->cstr_address, passedStr->cstr_length);
@@ -1171,7 +1171,7 @@ void rem_port::addServerKeys(CSTRING* passedStr)
 	}
 }
 
-bool rem_port::tryNewKey(InternalCryptKey* cryptKey)
+bool RemPort::tryNewKey(InternalCryptKey* cryptKey)
 {
 	for (unsigned t = 0; t < port_known_server_keys.getCount(); ++t)
 	{
@@ -1185,7 +1185,7 @@ bool rem_port::tryNewKey(InternalCryptKey* cryptKey)
 	return false;
 }
 
-bool rem_port::tryKeyType(const KnownServerKey& srvKey, InternalCryptKey* cryptKey)
+bool RemPort::tryKeyType(const KnownServerKey& srvKey, InternalCryptKey* cryptKey)
 {
 	if (port_crypt_complete)
 	{
@@ -1305,7 +1305,7 @@ Firebird::ICryptKey* SrvAuthBlock::newKey(Firebird::CheckStatusWrapper* status)
 	return NULL;
 }
 
-void rem_port::versionInfo(Firebird::string& version) const
+void RemPort::versionInfo(Firebird::string& version) const
 {
 	version.printf("%s/%s", FB_VERSION, port_version->str_data);
 #ifndef WIRE_COMPRESS_SUPPORT
@@ -1379,7 +1379,7 @@ namespace {
 }
 #endif // WIRE_COMPRESS_SUPPORT
 
-rem_port::~rem_port()
+RemPort::~RemPort()
 {
 	if (port_events_shutdown)
 	{
@@ -1418,7 +1418,7 @@ rem_port::~rem_port()
 #endif
 }
 
-bool REMOTE_inflate(rem_port* port, PacketReceive* packet_receive, UCHAR* buffer,
+bool REMOTE_inflate(RemPort* port, PacketReceive* packet_receive, UCHAR* buffer,
 	SSHORT buffer_length, SSHORT* length)
 {
 #ifdef WIRE_COMPRESS_SUPPORT
@@ -1500,7 +1500,7 @@ bool REMOTE_inflate(rem_port* port, PacketReceive* packet_receive, UCHAR* buffer
 bool REMOTE_deflate(XDR* xdrs, ProtoWrite* proto_write, PacketSend* packet_send, bool flush)
 {
 #ifdef WIRE_COMPRESS_SUPPORT
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 	if (!(port->port_compressed && (port->port_flags & PORT_compressed)))
 		return proto_write(xdrs);
 
@@ -1571,7 +1571,7 @@ bool REMOTE_deflate(XDR* xdrs, ProtoWrite* proto_write, PacketSend* packet_send,
 #endif
 }
 
-bool rem_port::checkCompression()
+bool RemPort::checkCompression()
 {
 #ifdef WIRE_COMPRESS_SUPPORT
 	return zlib();
@@ -1580,7 +1580,7 @@ bool rem_port::checkCompression()
 #endif
 }
 
-void rem_port::initCompression()
+void RemPort::initCompression()
 {
 #ifdef WIRE_COMPRESS_SUPPORT
 	if (port_protocol >= PROTOCOL_VERSION13 && !port_compressed && zlib())

@@ -118,7 +118,7 @@ namespace os_utils
 	SOCKET accept(SOCKET sockfd, sockaddr *addr, socklen_t *addrlen);
 }
 
-struct rem_port;
+struct RemPort;
 
 typedef Firebird::AutoPtr<UCHAR, Firebird::ArrayDelete<UCHAR> > UCharArrayAutoPtr;
 
@@ -160,7 +160,7 @@ struct Svc : public Firebird::GlobalStorage
 struct Rdb : public Firebird::GlobalStorage, public TypedHandle<rem_type_rdb>
 {
 	ServAttachment	rdb_iface;				// attachment interface
-	rem_port*		rdb_port;				// communication port
+	RemPort*		rdb_port;				// communication port
 	Firebird::AutoPtr<Svc>	rdb_svc;		// service-specific block
 	struct Rtr*		rdb_transactions;		// linked list of transactions
 	struct Rrq*		rdb_requests;			// compiled requests
@@ -272,7 +272,7 @@ struct Rvnt : public Firebird::GlobalStorage, public TypedHandle<rem_type_rev>
 	Rdb*		rvnt_rdb;
 	Firebird::RefPtr<Firebird::IEventCallback> rvnt_callback;
 	ServEvents	rvnt_iface;
-	rem_port*	rvnt_port;	// used to id server from whence async came
+	RemPort*	rvnt_port;	// used to id server from whence async came
 	SLONG		rvnt_id;	// used to store client-side id
 	USHORT		rvnt_length;
 	Rvnt**		rvnt_self;
@@ -744,7 +744,7 @@ public:
 	void resetClnt(const Firebird::PathName* fileName, const CSTRING* listStr = NULL);
 	bool checkPluginName(Firebird::PathName& nameToCheck);
 	Firebird::PathName getPluginName();
-	void tryNewKeys(rem_port*);
+	void tryNewKeys(RemPort*);
 	void releaseKeys(unsigned from);
 	Firebird::RefPtr<const Config>* getConfig();
 
@@ -766,7 +766,7 @@ class SrvAuthBlock FB_FINAL :
 	public Firebird::GlobalStorage
 {
 private:
-	rem_port* port;
+	RemPort* port;
 	Firebird::string userName;
 	Firebird::PathName pluginName, pluginList;
 	// These two may be legacy encrypted password, trusted auth data and so on
@@ -783,7 +783,7 @@ public:
 	static const ULONG EXTRACT_PLUGINS_LIST = 0x1;
 	static const ULONG ONLY_CLEANUP = 0x2;
 
-	explicit SrvAuthBlock(rem_port* p_port)
+	explicit SrvAuthBlock(RemPort* p_port)
 		: port(p_port),
 		  userName(getPool()), pluginName(getPool()), pluginList(getPool()),
 		  dataForPlugin(getPool()), dataFromPlugin(getPool()),
@@ -876,9 +876,9 @@ const USHORT PORT_compressed	= 0x1000;	// Compress outgoing stream (does not aff
 
 // Port itself
 
-typedef Firebird::RefPtr<rem_port> RemPortPtr;
+typedef Firebird::RefPtr<RemPort> RemPortPtr;
 
-struct rem_port : public Firebird::GlobalStorage, public Firebird::RefCounted
+struct RemPort : public Firebird::GlobalStorage, public Firebird::RefCounted
 {
 #ifdef DEV_BUILD
 	static Firebird::AtomicCounter portCounter;
@@ -890,18 +890,18 @@ struct rem_port : public Firebird::GlobalStorage, public Firebird::RefCounted
 	Firebird::RefPtr<Firebird::RefMutex> port_write_sync;
 
 	// port function pointers (C "emulation" of virtual functions)
-	bool			(*port_accept)(rem_port*, const p_cnct*);
-	void			(*port_disconnect)(rem_port*);
-	void			(*port_force_close)(rem_port*);
-	rem_port*		(*port_receive_packet)(rem_port*, PACKET*);
-	XDR_INT			(*port_send_packet)(rem_port*, PACKET*);
-	XDR_INT			(*port_send_partial)(rem_port*, PACKET*);
-	rem_port*		(*port_connect)(rem_port*, PACKET*);	// Establish secondary connection
-	rem_port*		(*port_request)(rem_port*, PACKET*);	// Request to establish secondary connection
-	bool			(*port_select_multi)(rem_port*, UCHAR*, SSHORT, SSHORT*, RemPortPtr&);	// get packet from active port
-	void			(*port_abort_aux_connection)(rem_port*);	// stop waiting for secondary connection
+	bool			(*port_accept)(RemPort*, const p_cnct*);
+	void			(*port_disconnect)(RemPort*);
+	void			(*port_force_close)(RemPort*);
+	RemPort*		(*port_receive_packet)(RemPort*, PACKET*);
+	XDR_INT			(*port_send_packet)(RemPort*, PACKET*);
+	XDR_INT			(*port_send_partial)(RemPort*, PACKET*);
+	RemPort*		(*port_connect)(RemPort*, PACKET*);	// Establish secondary connection
+	RemPort*		(*port_request)(RemPort*, PACKET*);	// Request to establish secondary connection
+	bool			(*port_select_multi)(RemPort*, UCHAR*, SSHORT, SSHORT*, RemPortPtr&);	// get packet from active port
+	void			(*port_abort_aux_connection)(RemPort*);	// stop waiting for secondary connection
 
-	enum rem_port_t {
+	enum RemPort_t {
 		INET,			// Internet (TCP/IP)
 		PIPE,			// Windows NT named pipe connection
 		XNET			// Windows NT shared memory connection
@@ -912,11 +912,11 @@ struct rem_port : public Firebird::GlobalStorage, public Firebird::RefCounted
 		DISCONNECTED	// port is disconnected
 	}				port_state;
 
-	rem_port*		port_clients;		// client ports
-	rem_port*		port_next;			// next client port
-	rem_port*		port_parent;		// parent port (for client ports)
-	rem_port*		port_async;			// asynchronous sibling port
-	rem_port*		port_async_receive;	// async packets receiver
+	RemPort*		port_clients;		// client ports
+	RemPort*		port_next;			// next client port
+	RemPort*		port_parent;		// parent port (for client ports)
+	RemPort*		port_async;			// asynchronous sibling port
+	RemPort*		port_async_receive;	// async packets receiver
 	struct srvr*	port_server;		// server of port
 	USHORT			port_server_flags;	// TRUE if server
 	USHORT			port_protocol;		// protocol version number
@@ -930,7 +930,7 @@ struct rem_port : public Firebird::GlobalStorage, public Firebird::RefCounted
 	struct linger	port_linger;		// linger value as defined by SO_LINGER
 	Rdb*			port_context;
 	Thread::Handle	port_events_thread;	// handle of thread, handling incoming events
-	void			(*port_events_shutdown)(rem_port*);	// hack - avoid changing API at beta stage
+	void			(*port_events_shutdown)(RemPort*);	// hack - avoid changing API at beta stage
 #ifdef WIN_NT
 	HANDLE			port_pipe;			// port pipe handle
 	HANDLE			port_event;			// event associated with a port
@@ -986,7 +986,7 @@ struct rem_port : public Firebird::GlobalStorage, public Firebird::RefCounted
 #endif
 
 public:
-	rem_port(rem_port_t t, size_t rpt) :
+	RemPort(RemPort_t t, size_t rpt) :
 		port_sync(FB_NEW_POOL(getPool()) Firebird::RefMutex()),
 		port_que_sync(FB_NEW_POOL(getPool()) Firebird::RefMutex()),
 		port_write_sync(FB_NEW_POOL(getPool()) Firebird::RefMutex()),
@@ -1027,12 +1027,12 @@ public:
 	}
 
 private:
-	~rem_port();	// this is refCounted object - private dtor is OK
+	~RemPort();	// this is refCounted object - private dtor is OK
 
 public:
 	void initCompression();
 	static bool checkCompression();
-	void linkParent(rem_port* const parent);
+	void linkParent(RemPort* const parent);
 	void unlinkParent();
 	Firebird::RefPtr<const Config> getPortConfig();
 	const Firebird::RefPtr<const Config>& getPortConfig() const;
@@ -1113,11 +1113,11 @@ public:
 	bool		accept(p_cnct* cnct);
 	void		disconnect();
 	void		force_close();
-	rem_port*	receive(PACKET* pckt);
+	RemPort*	receive(PACKET* pckt);
 	XDR_INT		send(PACKET* pckt);
 	XDR_INT		send_partial(PACKET* pckt);
-	rem_port*	connect(PACKET* pckt);
-	rem_port*	request(PACKET* pckt);
+	RemPort*	connect(PACKET* pckt);
+	RemPort*	request(PACKET* pckt);
 	bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
 	void		abort_aux_connection();
 
@@ -1142,7 +1142,7 @@ public:
 		FB_SIZE_T save_private;
 		FB_SIZE_T save_qoffset;
 
-		RecvQueState(const rem_port* port)
+		RecvQueState(const RemPort* port)
 		{
 			save_handy = port->port_receive.x_handy;
 			save_private = port->port_receive.x_private - port->port_receive.x_base;
@@ -1223,7 +1223,7 @@ private:
 
 // Queuing structure for Client batch fetches
 
-typedef void (*t_rmtque_fn)(rem_port*, rmtque*, USHORT);
+typedef void (*t_rmtque_fn)(RemPort*, rmtque*, USHORT);
 
 struct rmtque : public Firebird::GlobalStorage
 {
@@ -1259,13 +1259,13 @@ public:
 	~PortsCleanup()
 	{}
 
-	void registerPort(rem_port*);
-	void unRegisterPort(rem_port*);
+	void registerPort(RemPort*);
+	void unRegisterPort(RemPort*);
 
 	void closePorts();
 
 private:
-	typedef Firebird::SortedArray<rem_port*> PortsArray;
+	typedef Firebird::SortedArray<RemPort*> PortsArray;
 	PortsArray*		m_ports;
 	Firebird::Mutex	m_mutex;
 };

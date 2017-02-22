@@ -285,7 +285,7 @@ public:
 
 	enum HandleState {SEL_BAD, SEL_DISCONNECTED, SEL_NO_DATA, SEL_READY};
 
-	HandleState ok(const rem_port* port)
+	HandleState ok(const RemPort* port)
 	{
 #ifdef WIRE_COMPRESS_SUPPORT
 		if (port->port_flags & PORT_z_data)
@@ -407,14 +407,14 @@ private:
 #endif
 };
 
-static bool		accept_connection(rem_port*, const P_CNCT*);
+static bool		accept_connection(RemPort*, const P_CNCT*);
 #ifdef HAVE_SETITIMER
 static void		alarm_handler(int);
 #endif
-static rem_port*		alloc_port(rem_port*, const USHORT = 0);
-static rem_port*		aux_connect(rem_port*, PACKET*);
-static void				abort_aux_connection(rem_port*);
-static rem_port*		aux_request(rem_port*, PACKET*);
+static RemPort*		alloc_port(RemPort*, const USHORT = 0);
+static RemPort*		aux_connect(RemPort*, PACKET*);
+static void				abort_aux_connection(RemPort*);
+static RemPort*		aux_request(RemPort*, PACKET*);
 
 #if !defined(WIN_NT)
 static THREAD_ENTRY_DECLARE waitThread(THREAD_ENTRY_PARAM);
@@ -423,8 +423,8 @@ static GlobalPtr<Mutex> waitThreadMutex;
 static unsigned int procCount = 0;
 #endif // WIN_NT
 
-static void		disconnect(rem_port*);
-static void		force_close(rem_port*);
+static void		disconnect(RemPort*);
+static void		force_close(RemPort*);
 static int		cleanup_ports(const int, const int, void*);
 
 #ifdef NO_FORK
@@ -445,14 +445,14 @@ static bool forkThreadStarted = false;
 static SocketsArray* forkSockets;
 #endif
 
-static void		get_peer_info(rem_port*);
+static void		get_peer_info(RemPort*);
 
-static void		inet_gen_error(bool, rem_port*, const Arg::StatusVector& v);
+static void		inet_gen_error(bool, RemPort*, const Arg::StatusVector& v);
 static bool_t	inet_getbytes(XDR*, SCHAR *, u_int);
-static void		inet_error(bool, rem_port*, const TEXT*, ISC_STATUS, int);
+static void		inet_error(bool, RemPort*, const TEXT*, ISC_STATUS, int);
 static bool_t	inet_putbytes(XDR*, const SCHAR*, u_int);
 static bool		inet_read(XDR*);
-static rem_port*		inet_try_connect(	PACKET*,
+static RemPort*		inet_try_connect(	PACKET*,
 									Rdb*,
 									const PathName&,
 									const TEXT*,
@@ -461,26 +461,26 @@ static rem_port*		inet_try_connect(	PACKET*,
 									const PathName*,
 									int);
 static bool		inet_write(XDR*);
-static rem_port* listener_socket(rem_port* port, USHORT flag, const addrinfo* pai);
+static RemPort* listener_socket(RemPort* port, USHORT flag, const addrinfo* pai);
 
 #ifdef DEBUG
 static void packet_print(const TEXT*, const UCHAR*, int, ULONG);
 #endif
 
-static bool		packet_receive(rem_port*, UCHAR*, SSHORT, SSHORT*);
-static bool		packet_receive2(rem_port*, UCHAR*, SSHORT, SSHORT*);
-static bool		packet_send(rem_port*, const SCHAR*, SSHORT);
-static rem_port*		receive(rem_port*, PACKET *);
-static rem_port*		select_accept(rem_port*);
+static bool		packet_receive(RemPort*, UCHAR*, SSHORT, SSHORT*);
+static bool		packet_receive2(RemPort*, UCHAR*, SSHORT, SSHORT*);
+static bool		packet_send(RemPort*, const SCHAR*, SSHORT);
+static RemPort*		receive(RemPort*, PACKET *);
+static RemPort*		select_accept(RemPort*);
 
-static void		select_port(rem_port*, Select*, RemPortPtr&);
-static bool		select_multi(rem_port*, UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr&);
-static bool		select_wait(rem_port*, Select*);
-static int		send_full(rem_port*, PACKET *);
-static int		send_partial(rem_port*, PACKET *);
+static void		select_port(RemPort*, Select*, RemPortPtr&);
+static bool		select_multi(RemPort*, UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr&);
+static bool		select_wait(RemPort*, Select*);
+static int		send_full(RemPort*, PACKET *);
+static int		send_partial(RemPort*, PACKET *);
 
-static int		xdrinet_create(XDR*, rem_port*, UCHAR *, USHORT, enum xdr_op);
-static bool		setNoNagleOption(rem_port*);
+static int		xdrinet_create(XDR*, RemPort*, UCHAR *, USHORT, enum xdr_op);
+static bool		setNoNagleOption(RemPort*);
 static bool		setFastLoopbackOption(SOCKET s);
 static FPTR_INT	tryStopMainThread = 0;
 
@@ -525,7 +525,7 @@ static GlobalPtr<Mutex> init_mutex;
 static volatile bool INET_initialized = false;
 static volatile bool INET_shutting_down = false;
 static Firebird::GlobalPtr<Select> INET_select;
-static rem_port* inet_async_receive = NULL;
+static RemPort* inet_async_receive = NULL;
 
 
 static GlobalPtr<Mutex> port_mutex;
@@ -533,7 +533,7 @@ static GlobalPtr<PortsCleanup>	inet_ports;
 static GlobalPtr<SocketsArray> ports_to_close;
 
 
-rem_port* INET_analyze(ClntAuthBlock* cBlock,
+RemPort* INET_analyze(ClntAuthBlock* cBlock,
 					   const PathName& file_name,
 					   const TEXT* node_name,
 					   bool uv_flag,
@@ -630,13 +630,13 @@ rem_port* INET_analyze(ClntAuthBlock* cBlock,
 	for (size_t i = 0; i < cnct->p_cnct_count; i++) {
 		cnct->p_cnct_versions[i] = protocols_to_try[i];
 		if (compression && cnct->p_cnct_versions[i].p_cnct_version >= PROTOCOL_VERSION13 &&
-			rem_port::checkCompression())
+			RemPort::checkCompression())
 		{
 			cnct->p_cnct_versions[i].p_cnct_max_type |= pflag_compress;
 		}
 	}
 
-	rem_port* port = inet_try_connect(packet, rdb, file_name, node_name, dpb, config, ref_db_name, af);
+	RemPort* port = inet_try_connect(packet, rdb, file_name, node_name, dpb, config, ref_db_name, af);
 	P_ACPT* accept;
 
 	for (;;)
@@ -764,7 +764,7 @@ rem_port* INET_analyze(ClntAuthBlock* cBlock,
 	return port;
 }
 
-rem_port* INET_connect(const TEXT* name,
+RemPort* INET_connect(const TEXT* name,
 					   PACKET* packet,
 					   USHORT flag,
 					   ClumpletReader* dpb,
@@ -799,7 +799,7 @@ rem_port* INET_connect(const TEXT* name,
 	}
 #endif
 
-	rem_port* port = alloc_port(NULL);
+	RemPort* port = alloc_port(NULL);
 	if (config)
 	{
 		port->port_config = *config;
@@ -973,7 +973,7 @@ exit_free:
 	return port;
 }
 
-static rem_port* listener_socket(rem_port* port, USHORT flag, const addrinfo* pai)
+static RemPort* listener_socket(RemPort* port, USHORT flag, const addrinfo* pai)
 {
 /**************************************
  *
@@ -1140,7 +1140,7 @@ static rem_port* listener_socket(rem_port* port, USHORT flag, const addrinfo* pa
 }
 
 
-rem_port* INET_reconnect(SOCKET handle)
+RemPort* INET_reconnect(SOCKET handle)
 {
 /**************************************
  *
@@ -1154,7 +1154,7 @@ rem_port* INET_reconnect(SOCKET handle)
  *	a port block.
  *
  **************************************/
-	rem_port* const port = alloc_port(NULL);
+	RemPort* const port = alloc_port(NULL);
 
 	port->port_handle = handle;
 	port->port_flags |= PORT_server;
@@ -1173,7 +1173,7 @@ rem_port* INET_reconnect(SOCKET handle)
 	return port;
 }
 
-rem_port* INET_server(SOCKET sock)
+RemPort* INET_server(SOCKET sock)
 {
 /**************************************
  *
@@ -1187,7 +1187,7 @@ rem_port* INET_server(SOCKET sock)
  *
  **************************************/
 	int n = 0;
-	rem_port* const port = alloc_port(NULL);
+	RemPort* const port = alloc_port(NULL);
 	port->port_flags |= PORT_server;
 	port->port_server_flags |= SRVR_server;
 	port->port_handle = sock;
@@ -1205,7 +1205,7 @@ rem_port* INET_server(SOCKET sock)
 	return port;
 }
 
-static bool accept_connection(rem_port* port, const P_CNCT* cnct)
+static bool accept_connection(RemPort* port, const P_CNCT* cnct)
 {
 /**************************************
  *
@@ -1279,7 +1279,7 @@ static bool accept_connection(rem_port* port, const P_CNCT* cnct)
 }
 
 
-static rem_port* alloc_port(rem_port* const parent, const USHORT flags)
+static RemPort* alloc_port(RemPort* const parent, const USHORT flags)
 {
 /**************************************
  *
@@ -1327,7 +1327,7 @@ static rem_port* alloc_port(rem_port* const parent, const USHORT flags)
 		}
 	}
 
-	rem_port* const port = FB_NEW rem_port(rem_port::INET, INET_remote_buffer * 2);
+	RemPort* const port = FB_NEW RemPort(RemPort::INET, INET_remote_buffer * 2);
 	REMOTE_get_timeout_params(port, 0);
 
 	TEXT buffer[BUFFER_SMALL];
@@ -1368,7 +1368,7 @@ static rem_port* alloc_port(rem_port* const parent, const USHORT flags)
 	return port;
 }
 
-static void abort_aux_connection(rem_port* port)
+static void abort_aux_connection(RemPort* port)
 {
 	if (port->port_flags & PORT_connecting)
 	{
@@ -1377,7 +1377,7 @@ static void abort_aux_connection(rem_port* port)
 	}
 }
 
-static rem_port* aux_connect(rem_port* port, PACKET* packet)
+static RemPort* aux_connect(RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -1449,7 +1449,7 @@ static rem_port* aux_connect(rem_port* port, PACKET* packet)
 		return port;
 	}
 
-	rem_port* const new_port = alloc_port(port->port_parent,
+	RemPort* const new_port = alloc_port(port->port_parent,
 		(port->port_flags & PORT_no_oob) | PORT_async);
 	port->port_async = new_port;
 	new_port->port_dummy_packet_interval = port->port_dummy_packet_interval;
@@ -1507,7 +1507,7 @@ static rem_port* aux_connect(rem_port* port, PACKET* packet)
 	return new_port;
 }
 
-static rem_port* aux_request( rem_port* port, PACKET* packet)
+static RemPort* aux_request( RemPort* port, PACKET* packet)
 {
 /**************************************
  *
@@ -1572,7 +1572,7 @@ static rem_port* aux_request( rem_port* port, PACKET* packet)
 
 	setFastLoopbackOption(n);
 
-	rem_port* const new_port = alloc_port(port->port_parent,
+	RemPort* const new_port = alloc_port(port->port_parent,
 		(port->port_flags & PORT_no_oob) | PORT_async | PORT_connecting);
 	port->port_async = new_port;
 	new_port->port_dummy_packet_interval = port->port_dummy_packet_interval;
@@ -1625,7 +1625,7 @@ static THREAD_ENTRY_DECLARE waitThread(THREAD_ENTRY_PARAM)
 }
 #endif // !defined(WIN_NT)
 
-static void disconnect(rem_port* const port)
+static void disconnect(RemPort* const port)
 {
 /**************************************
  *
@@ -1659,7 +1659,7 @@ static void disconnect(rem_port* const port)
 	}
 
 	MutexLockGuard guard(port_mutex, FB_FUNCTION);
-	port->port_state = rem_port::DISCONNECTED;
+	port->port_state = RemPort::DISCONNECTED;
 	port->port_flags &= ~PORT_connecting;
 
 	if (port->port_async)
@@ -1710,7 +1710,7 @@ static void disconnect(rem_port* const port)
 }
 
 
-static void force_close(rem_port* port)
+static void force_close(RemPort* port)
 {
 /**************************************
  *
@@ -1726,10 +1726,10 @@ static void force_close(rem_port* port)
 	if (port->port_async)
 		abort_aux_connection(port->port_async);
 
-	if (port->port_state != rem_port::PENDING)
+	if (port->port_state != RemPort::PENDING)
 		return;
 
-	port->port_state = rem_port::BROKEN;
+	port->port_state = RemPort::BROKEN;
 
 	if (port->port_handle != INVALID_SOCKET)
 	{
@@ -1897,7 +1897,7 @@ bool inet_aton(const char* name, in_addr* address)
 #endif
 
 
-static rem_port* receive( rem_port* main_port, PACKET * packet)
+static RemPort* receive( RemPort* main_port, PACKET * packet)
 {
 /**************************************
  *
@@ -1928,7 +1928,7 @@ static rem_port* receive( rem_port* main_port, PACKET * packet)
 			main_port->port_flags &= ~PORT_partial_data;
 
 			if (packet->p_operation == op_exit) {
-				main_port->port_state = rem_port::BROKEN;
+				main_port->port_state = RemPort::BROKEN;
 			}
 			break;
 		}
@@ -1950,7 +1950,7 @@ static rem_port* receive( rem_port* main_port, PACKET * packet)
 	return main_port;
 }
 
-static bool select_multi(rem_port* main_port, UCHAR* buffer, SSHORT bufsize, SSHORT* length,
+static bool select_multi(RemPort* main_port, UCHAR* buffer, SSHORT bufsize, SSHORT* length,
 						 RemPortPtr& port)
 {
 /**************************************
@@ -1974,9 +1974,9 @@ static bool select_multi(rem_port* main_port, UCHAR* buffer, SSHORT bufsize, SSH
 		{
 			if (INET_shutting_down)
 			{
-				if (main_port->port_state != rem_port::BROKEN)
+				if (main_port->port_state != RemPort::BROKEN)
 				{
-					main_port->port_state = rem_port::BROKEN;
+					main_port->port_state = RemPort::BROKEN;
 
 					shutdown(main_port->port_handle, 2);
 					SOCLOSE(main_port->port_handle);
@@ -2022,7 +2022,7 @@ static bool select_multi(rem_port* main_port, UCHAR* buffer, SSHORT bufsize, SSH
 	}
 }
 
-static rem_port* select_accept( rem_port* main_port)
+static RemPort* select_accept( RemPort* main_port)
 {
 /**************************************
  *
@@ -2035,7 +2035,7 @@ static rem_port* select_accept( rem_port* main_port)
  *
  **************************************/
 
-	rem_port* const port = alloc_port(main_port);
+	RemPort* const port = alloc_port(main_port);
 	inet_ports->registerPort(port);
 
 	port->port_handle = os_utils::accept(main_port->port_handle, NULL, NULL);
@@ -2058,7 +2058,7 @@ static rem_port* select_accept( rem_port* main_port)
 	return 0;
 }
 
-static void select_port(rem_port* main_port, Select* selct, RemPortPtr& port)
+static void select_port(RemPort* main_port, Select* selct, RemPortPtr& port)
 {
 /**************************************
  *
@@ -2086,7 +2086,7 @@ static void select_port(rem_port* main_port, Select* selct, RemPortPtr& port)
 		switch (result)
 		{
 		case Select::SEL_BAD:
-			if (port->port_state == rem_port::BROKEN || (port->port_flags & PORT_connecting))
+			if (port->port_state == RemPort::BROKEN || (port->port_flags & PORT_connecting))
 				continue;
 			return;
 
@@ -2106,7 +2106,7 @@ static void select_port(rem_port* main_port, Select* selct, RemPortPtr& port)
 	}
 }
 
-static bool select_wait( rem_port* main_port, Select* selct)
+static bool select_wait( RemPort* main_port, Select* selct)
 {
 /**************************************
  *
@@ -2152,9 +2152,9 @@ static bool select_wait( rem_port* main_port, Select* selct)
 				SOCLOSE(s);
 			}
 
-			for (rem_port* port = main_port; port; port = port->port_next)
+			for (RemPort* port = main_port; port; port = port->port_next)
 			{
-				if (port->port_state == rem_port::PENDING &&
+				if (port->port_state == RemPort::PENDING &&
 					// don't wait on still listening (not connected) async port
 					!(port->port_handle == INVALID_SOCKET && (port->port_flags & PORT_async)))
  				{
@@ -2251,7 +2251,7 @@ static bool select_wait( rem_port* main_port, Select* selct)
 				if (selct->getCount() == 0)
 				{
 					MutexLockGuard guard(port_mutex, FB_FUNCTION);
-					for (rem_port* port = main_port; port; port = port->port_next)
+					for (RemPort* port = main_port; port; port = port->port_next)
 					{
 						selct->unset(port->port_handle);
 					}
@@ -2272,7 +2272,7 @@ static bool select_wait( rem_port* main_port, Select* selct)
 	}
 }
 
-static int send_full( rem_port* port, PACKET * packet)
+static int send_full( RemPort* port, PACKET * packet)
 {
 /**************************************
  *
@@ -2307,7 +2307,7 @@ static int send_full( rem_port* port, PACKET * packet)
 	return REMOTE_deflate(&port->port_send, inet_write, packet_send, true);
 }
 
-static int send_partial( rem_port* port, PACKET * packet)
+static int send_partial( RemPort* port, PACKET * packet)
 {
 /**************************************
  *
@@ -2341,7 +2341,7 @@ static int send_partial( rem_port* port, PACKET * packet)
 }
 
 
-static int xdrinet_create(XDR* xdrs, rem_port* port, UCHAR* buffer, USHORT length, enum xdr_op x_op)
+static int xdrinet_create(XDR* xdrs, RemPort* port, UCHAR* buffer, USHORT length, enum xdr_op x_op)
 {
 /**************************************
  *
@@ -2380,7 +2380,7 @@ static void alarm_handler( int x)
 }
 #endif
 
-void get_peer_info(rem_port* port)
+void get_peer_info(RemPort* port)
 {
 /**************************************
 *
@@ -2412,7 +2412,7 @@ void get_peer_info(rem_port* port)
 }
 
 
-static void inet_gen_error(bool releasePort, rem_port* port, const Arg::StatusVector& v)
+static void inet_gen_error(bool releasePort, RemPort* port, const Arg::StatusVector& v)
 {
 /**************************************
  *
@@ -2426,7 +2426,7 @@ static void inet_gen_error(bool releasePort, rem_port* port, const Arg::StatusVe
  *	save the status vector strings in a permanent place.
  *
  **************************************/
-	port->port_state = rem_port::BROKEN;
+	port->port_state = RemPort::BROKEN;
 
 	string node_name(port->port_connection ? port->port_connection->str_data : "(unknown)");
 
@@ -2453,7 +2453,7 @@ static bool_t inet_getbytes( XDR* xdrs, SCHAR* buff, u_int count)
  *	Get a bunch of bytes from a memory stream if it fits.
  *
  **************************************/
-	const rem_port* port = (rem_port*) xdrs->x_public;
+	const RemPort* port = (RemPort*) xdrs->x_public;
 	if (port->port_flags & PORT_server)
 	{
 		return REMOTE_getbytes(xdrs, buff, count);
@@ -2513,7 +2513,7 @@ static bool_t inet_getbytes( XDR* xdrs, SCHAR* buff, u_int count)
 }
 
 
-static void inet_error(bool releasePort, rem_port* port, const TEXT* function, ISC_STATUS operation, int status)
+static void inet_error(bool releasePort, RemPort* port, const TEXT* function, ISC_STATUS operation, int status)
 {
 /**************************************
  *
@@ -2529,7 +2529,7 @@ static void inet_error(bool releasePort, rem_port* port, const TEXT* function, I
  **************************************/
 	if (status)
 	{
-		if (port->port_state != rem_port::BROKEN)
+		if (port->port_state != RemPort::BROKEN)
 		{
 			string err;
 			err.printf("INET/inet_error: %s errno = %d", function, status);
@@ -2657,7 +2657,7 @@ static bool inet_read( XDR* xdrs)
  *	message sent will handle this.
  *
  **************************************/
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 	char* p = xdrs->x_base;
 	const char* const end = p + INET_remote_buffer;
 
@@ -2681,7 +2681,7 @@ static bool inet_read( XDR* xdrs)
 	return true;
 }
 
-static bool packet_receive2(rem_port* port, UCHAR* p, SSHORT bufSize, SSHORT* length)
+static bool packet_receive2(RemPort* port, UCHAR* p, SSHORT bufSize, SSHORT* length)
 {
 	*length = 0;
 
@@ -2705,7 +2705,7 @@ static bool packet_receive2(rem_port* port, UCHAR* p, SSHORT bufSize, SSHORT* le
 	return true;
 }
 
-static rem_port* inet_try_connect(PACKET* packet,
+static RemPort* inet_try_connect(PACKET* packet,
 								  Rdb* rdb,
 								  const PathName& file_name,
 								  const TEXT* node_name,
@@ -2741,7 +2741,7 @@ static rem_port* inet_try_connect(PACKET* packet,
 	// If we can't talk to a server, punt.  Let somebody else generate
 	// an error.  status_vector will have the network error info.
 
-	rem_port* port = NULL;
+	RemPort* port = NULL;
 	try
 	{
 		port = INET_connect(node_name, packet, false, &dpb, config, af);
@@ -2780,7 +2780,7 @@ static bool inet_write(XDR* xdrs)
  **************************************/
 	// Encode the data portion of the packet
 
-	rem_port* port = (rem_port*) xdrs->x_public;
+	RemPort* port = (RemPort*) xdrs->x_public;
 	const char* p = xdrs->x_base;
 	USHORT length = xdrs->x_private - p;
 
@@ -2826,7 +2826,7 @@ static void packet_print(const TEXT* string, const UCHAR* packet, int length, UL
 }
 #endif
 
-static bool packet_receive(rem_port* port, UCHAR* buffer, SSHORT buffer_length, SSHORT* length)
+static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, SSHORT* length)
 {
 /**************************************
  *
@@ -2990,7 +2990,7 @@ static bool packet_receive(rem_port* port, UCHAR* buffer, SSHORT buffer_length, 
 
 	if (!n)
 	{
-		port->port_state = rem_port::BROKEN;
+		port->port_state = RemPort::BROKEN;
 		return false;
 	}
 
@@ -3023,7 +3023,7 @@ static bool packet_receive(rem_port* port, UCHAR* buffer, SSHORT buffer_length, 
 }
 
 
-static bool packet_send( rem_port* port, const SCHAR* buffer, SSHORT buffer_length)
+static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_length)
 {
 /**************************************
  *
@@ -3196,7 +3196,7 @@ static bool packet_send( rem_port* port, const SCHAR* buffer, SSHORT buffer_leng
 	return true;
 }
 
-static bool setNoNagleOption(rem_port* port)
+static bool setNoNagleOption(RemPort* port)
 {
 /**************************************
  *

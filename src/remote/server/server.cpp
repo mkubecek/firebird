@@ -92,12 +92,12 @@ public:
 struct srvr : public GlobalStorage
 {
 	srvr* const srvr_next;
-	const rem_port*	const srvr_parent_port;
-	const rem_port::rem_port_t srvr_port_type;
+	const RemPort*	const srvr_parent_port;
+	const RemPort::RemPort_t srvr_port_type;
 	const USHORT srvr_flags;
 
 public:
-	srvr(srvr* servers, rem_port* port, USHORT flags) :
+	srvr(srvr* servers, RemPort* port, USHORT flags) :
 		srvr_next(servers), srvr_parent_port(port),
 		srvr_port_type(port->port_type), srvr_flags(flags)
 	{ }
@@ -110,7 +110,7 @@ namespace {
 class NetworkCallback : public VersionedIface<ICryptKeyCallbackImpl<NetworkCallback, CheckStatusWrapper> >
 {
 public:
-	explicit NetworkCallback(rem_port* prt)
+	explicit NetworkCallback(RemPort* prt)
 		: port(prt), replyLength(0), replyData(NULL), stopped(false), wake(false)
 	{ }
 
@@ -162,7 +162,7 @@ public:
 	}
 
 private:
-	rem_port* port;
+	RemPort* port;
 	Semaphore sem;
 	unsigned int replyLength;
 	void* replyData;
@@ -175,7 +175,7 @@ public:
 class CryptKeyCallback : public VersionedIface<ICryptKeyCallbackImpl<CryptKeyCallback, CheckStatusWrapper> >
 {
 public:
-	explicit CryptKeyCallback(rem_port* prt)
+	explicit CryptKeyCallback(RemPort* prt)
 		: port(prt), networkCallback(prt), keyHolder(NULL), keyCallback(NULL)
 	{ }
 
@@ -236,7 +236,7 @@ public:
 	}
 
 private:
-	rem_port* port;
+	RemPort* port;
 	NetworkCallback networkCallback;
 	IKeyHolderPlugin* keyHolder;
 	ICryptKeyCallback* keyCallback;
@@ -245,7 +245,7 @@ private:
 class ServerCallback : public ServerCallbackBase, public GlobalStorage
 {
 public:
-	explicit ServerCallback(rem_port* prt)
+	explicit ServerCallback(RemPort* prt)
 		: cryptCallback(prt)
 	{ }
 
@@ -462,7 +462,7 @@ public:
 	virtual void accept(PACKET* send, Auth::WriterImplementation* authBlock) = 0;
 
 	ServerAuth(ClumpletReader* aPb, const ParametersSet& aTags,
-			   rem_port* port, bool multiPartData = false)
+			   RemPort* port, bool multiPartData = false)
 		: authItr(NULL),
 		  userName(getPool()),
 		  authServer(NULL),
@@ -728,14 +728,14 @@ private:
 	unsigned int hopsCount;
 
 protected:
-	rem_port* authPort;
+	RemPort* authPort;
 };
 
 
 class DatabaseAuth : public ServerAuth
 {
 public:
-	DatabaseAuth(rem_port* port, const PathName& db, ClumpletWriter* dpb, P_OP op)
+	DatabaseAuth(RemPort* port, const PathName& db, ClumpletWriter* dpb, P_OP op)
 		: ServerAuth(dpb, dpbParam, port),
 		  dbName(getPool(), db),
 		  pb(dpb),
@@ -754,7 +754,7 @@ private:
 class ServiceAttachAuth : public ServerAuth
 {
 public:
-	ServiceAttachAuth(rem_port* port, const PathName& pmanagerName, ClumpletWriter* spb)
+	ServiceAttachAuth(RemPort* port, const PathName& pmanagerName, ClumpletWriter* spb)
 		: ServerAuth(spb, spbParam, port),
 		  managerName(getPool(), pmanagerName),
 		  pb(spb)
@@ -901,7 +901,7 @@ public:
 	 *
 	 **************************************/
 	{
-		rem_port* port = rdb->rdb_port->port_async;
+		RemPort* port = rdb->rdb_port->port_async;
 		if (!port || (port->port_flags & PORT_detached))
 			return;
 
@@ -911,7 +911,7 @@ public:
 			return;
 
 		// hvlad: it is important to call IEvents::cancel() under protection
-		// of async port mutex to avoid crash in rem_port::que_events
+		// of async port mutex to avoid crash in RemPort::que_events
 
 		const bool allowCancel = event->rvnt_destroyed.compareExchange(0, 1);
 		if (!allowCancel)
@@ -1056,30 +1056,30 @@ InitInstance<CryptKeyTypeManager> knownCryptKeyTypes;
 
 static void		free_request(server_req_t*);
 static server_req_t* alloc_request();
-static bool		link_request(rem_port*, server_req_t*);
+static bool		link_request(RemPort*, server_req_t*);
 
-static bool		accept_connection(rem_port*, P_CNCT*, PACKET*);
-static ISC_STATUS	allocate_statement(rem_port*, /*P_RLSE*,*/ PACKET*);
+static bool		accept_connection(RemPort*, P_CNCT*, PACKET*);
+static ISC_STATUS	allocate_statement(RemPort*, /*P_RLSE*,*/ PACKET*);
 static void		append_request_chain(server_req_t*, server_req_t**);
 static void		append_request_next(server_req_t*, server_req_t**);
-static void		attach_database(rem_port*, P_OP, P_ATCH*, PACKET*);
-static void		attach_service(rem_port*, P_ATCH*, PACKET*);
-static bool		continue_authentication(rem_port*, PACKET*, PACKET*);
+static void		attach_database(RemPort*, P_OP, P_ATCH*, PACKET*);
+static void		attach_service(RemPort*, P_ATCH*, PACKET*);
+static bool		continue_authentication(RemPort*, PACKET*, PACKET*);
 
-static void		aux_request(rem_port*, /*P_REQ*,*/ PACKET*);
+static void		aux_request(RemPort*, /*P_REQ*,*/ PACKET*);
 static bool		bad_port_context(IStatus*, IReferenceCounted*, const ISC_STATUS);
-static ISC_STATUS	cancel_events(rem_port*, P_EVENT*, PACKET*);
-static void		addClumplets(ClumpletWriter*, const ParametersSet&, const rem_port*);
+static ISC_STATUS	cancel_events(RemPort*, P_EVENT*, PACKET*);
+static void		addClumplets(ClumpletWriter*, const ParametersSet&, const RemPort*);
 
-static void		cancel_operation(rem_port*, USHORT);
+static void		cancel_operation(RemPort*, USHORT);
 
 static bool		check_request(Rrq*, USHORT, USHORT);
 static USHORT	check_statement_type(Rsr*);
 
 static bool		get_next_msg_no(Rrq*, USHORT, USHORT*);
 static Rtr*		make_transaction(Rdb*, ITransaction*);
-static void		ping_connection(rem_port*, PACKET*);
-static bool		process_packet(rem_port* port, PACKET* sendL, PACKET* receive, rem_port** result);
+static void		ping_connection(RemPort*, PACKET*);
+static bool		process_packet(RemPort* port, PACKET* sendL, PACKET* receive, RemPort** result);
 static void		release_blob(Rbl*);
 static void		release_event(Rvnt*);
 static void		release_request(Rrq*, bool rlsIface = false);
@@ -1087,9 +1087,9 @@ static void		release_statement(Rsr**);
 static void		release_sql_request(Rsr*);
 static void		release_transaction(Rtr*);
 
-static void		send_error(rem_port* port, PACKET* apacket, ISC_STATUS errcode);
-static void		send_error(rem_port* port, PACKET* apacket, const Firebird::Arg::StatusVector&);
-static void		set_server(rem_port*, USHORT);
+static void		send_error(RemPort* port, PACKET* apacket, ISC_STATUS errcode);
+static void		send_error(RemPort* port, PACKET* apacket, const Firebird::Arg::StatusVector&);
+static void		set_server(RemPort*, USHORT);
 static int		shut_server(const int, const int, void*);
 static THREAD_ENTRY_DECLARE loopThread(THREAD_ENTRY_PARAM);
 static void		zap_packet(PACKET*, bool);
@@ -1270,7 +1270,7 @@ void SRVR_enum_attachments(ULONG& att_cnt, ULONG& dbs_cnt, ULONG& svc_cnt)
 	}
 }
 
-void SRVR_main(rem_port* main_port, USHORT flags)
+void SRVR_main(RemPort* main_port, USHORT flags)
 {
 /**************************************
  *
@@ -1300,7 +1300,7 @@ void SRVR_main(rem_port* main_port, USHORT flags)
 
 		try
 		{
-			rem_port* port = main_port->receive(&receive);
+			RemPort* port = main_port->receive(&receive);
 			if (!port) {
 				break;
 			}
@@ -1402,7 +1402,7 @@ static server_req_t* alloc_request()
 }
 
 
-static bool link_request(rem_port* port, server_req_t* request)
+static bool link_request(RemPort* port, server_req_t* request)
 {
 /**************************************
  *
@@ -1469,7 +1469,7 @@ static bool link_request(rem_port* port, server_req_t* request)
 }
 
 
-void SRVR_multi_thread( rem_port* main_port, USHORT flags)
+void SRVR_multi_thread( RemPort* main_port, USHORT flags)
 {
 /**************************************
  *
@@ -1565,7 +1565,7 @@ void SRVR_multi_thread( rem_port* main_port, USHORT flags)
 
 						RefMutexGuard queGuard(*port->port_que_sync, FB_FUNCTION);
 
-						const rem_port::RecvQueState recvState = port->getRecvState();
+						const RemPort::RecvQueState recvState = port->getRecvState();
 						port->receive(&request->req_receive);
 
 						if (request->req_receive.p_operation == op_partial)
@@ -1624,10 +1624,10 @@ void SRVR_multi_thread( rem_port* main_port, USHORT flags)
 
 			// All worker threads are stopped and will never run any more
 			// Disconnect remaining ports gracefully
-			rem_port* run_port = main_port;
+			RemPort* run_port = main_port;
 			while (run_port)
 			{
-				rem_port* current_port = run_port;	// important order of operations
+				RemPort* current_port = run_port;	// important order of operations
 				run_port = run_port->port_next;		// disconnect() can modify linked list of ports
 				if (!(current_port->port_flags & PORT_disconnect))
 					current_port->disconnect(NULL, NULL);
@@ -1713,9 +1713,9 @@ void SRVR_multi_thread( rem_port* main_port, USHORT flags)
 }
 
 
-bool wireEncryption(rem_port* port, ClumpletReader& id)
+bool wireEncryption(RemPort* port, ClumpletReader& id)
 {
-	if (port->port_type == rem_port::XNET)		// local connection
+	if (port->port_type == RemPort::XNET)		// local connection
 	{
 		port->port_crypt_level = WIRECRYPT_DISABLED;
 		return false;
@@ -1747,7 +1747,7 @@ bool wireEncryption(rem_port* port, ClumpletReader& id)
 class ConnectAuth : public ServerAuth
 {
 public:
-	ConnectAuth(rem_port* port, ClumpletReader& connect)
+	ConnectAuth(RemPort* port, ClumpletReader& connect)
 		: ServerAuth(&connect, connectParam, port, true), useResponse(false)
 	{
 		HANDSHAKE_DEBUG(fprintf(stderr, "Srv: ConnectAuth::ConnectAuth()\n"));
@@ -1771,7 +1771,7 @@ static void setErrorStatus(IStatus* status)
 	status->setErrors(loginError.value());
 }
 
-static bool accept_connection(rem_port* port, P_CNCT* connect, PACKET* send)
+static bool accept_connection(RemPort* port, P_CNCT* connect, PACKET* send)
 {
 /**************************************
  *
@@ -2059,7 +2059,7 @@ void Rsr::checkCursor()
 }
 
 
-static ISC_STATUS allocate_statement( rem_port* port, /*P_RLSE* allocate,*/ PACKET* send)
+static ISC_STATUS allocate_statement( RemPort* port, /*P_RLSE* allocate,*/ PACKET* send)
 {
 /**************************************
  *
@@ -2155,7 +2155,7 @@ static void append_request_next(server_req_t* request, server_req_t** que_inst)
 
 static void addClumplets(ClumpletWriter* dpb_buffer,
 						 const ParametersSet& par,
-						 const rem_port* port)
+						 const RemPort* port)
 {
 /**************************************
  *
@@ -2269,7 +2269,7 @@ static void addClumplets(ClumpletWriter* dpb_buffer,
 }
 
 
-static void attach_database(rem_port* port, P_OP operation, P_ATCH* attach, PACKET* send)
+static void attach_database(RemPort* port, P_OP operation, P_ATCH* attach, PACKET* send)
 {
 /**************************************
  *
@@ -2378,7 +2378,7 @@ void DatabaseAuth::accept(PACKET* send, Auth::WriterImplementation* authBlock)
 }
 
 
-static void aux_request( rem_port* port, /*P_REQ* request,*/ PACKET* send)
+static void aux_request( RemPort* port, /*P_REQ* request,*/ PACKET* send)
 {
 /**************************************
  *
@@ -2410,11 +2410,11 @@ static void aux_request( rem_port* port, /*P_REQ* request,*/ PACKET* send)
 		send->p_resp.p_resp_data.cstr_address = buffer;
 
 		// To be retrieved via an overloaded class member once our ports become real classes
-		const int aux_port_id = (port->port_type == rem_port::INET) ?
+		const int aux_port_id = (port->port_type == RemPort::INET) ?
 			Config::getDefaultConfig()->getRemoteAuxPort() : 0;
 		GlobalPortLock auxPortLock(aux_port_id);
 
-		rem_port* const aux_port = port->request(send);
+		RemPort* const aux_port = port->request(send);
 
 		port->send_response(send, rdb->rdb_id, send->p_resp.p_resp_data.cstr_length,
 							&status_vector, false);
@@ -2478,7 +2478,7 @@ static bool bad_port_context(IStatus* status_vector, IReferenceCounted* iface, c
 }
 
 
-static ISC_STATUS cancel_events( rem_port* port, P_EVENT * stuff, PACKET* send)
+static ISC_STATUS cancel_events( RemPort* port, P_EVENT * stuff, PACKET* send)
 {
 /**************************************
  *
@@ -2532,7 +2532,7 @@ static ISC_STATUS cancel_events( rem_port* port, P_EVENT * stuff, PACKET* send)
 }
 
 
-static void cancel_operation(rem_port* port, USHORT kind)
+static void cancel_operation(RemPort* port, USHORT kind)
 {
 /**************************************
  *
@@ -2643,7 +2643,7 @@ static USHORT check_statement_type( Rsr* statement)
 }
 
 
-ISC_STATUS rem_port::compile(P_CMPL* compileL, PACKET* sendL)
+ISC_STATUS RemPort::compile(P_CMPL* compileL, PACKET* sendL)
 {
 /**************************************
  *
@@ -2724,7 +2724,7 @@ ISC_STATUS rem_port::compile(P_CMPL* compileL, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::ddl(P_DDL* ddlL, PACKET* sendL)
+ISC_STATUS RemPort::ddl(P_DDL* ddlL, PACKET* sendL)
 {
 /**************************************
  *
@@ -2757,7 +2757,7 @@ ISC_STATUS rem_port::ddl(P_DDL* ddlL, PACKET* sendL)
 }
 
 
-void rem_port::disconnect(PACKET* sendL, PACKET* receiveL)
+void RemPort::disconnect(PACKET* sendL, PACKET* receiveL)
 {
 /**************************************
  *
@@ -2803,7 +2803,7 @@ void rem_port::disconnect(PACKET* sendL, PACKET* receiveL)
 	PACKET *packet = &rdb->rdb_packet;
 	if (this->port_async)
 	{
-		if ((this->port_type == rem_port::XNET) || (this->port_type == rem_port::PIPE))
+		if ((this->port_type == RemPort::XNET) || (this->port_type == RemPort::PIPE))
 		{
 			packet->p_operation = op_disconnect;
 			this->port_async->send(packet);
@@ -2898,7 +2898,7 @@ void rem_port::disconnect(PACKET* sendL, PACKET* receiveL)
 }
 
 
-void rem_port::drop_database(P_RLSE* /*release*/, PACKET* sendL)
+void RemPort::drop_database(P_RLSE* /*release*/, PACKET* sendL)
 {
 /**************************************
  *
@@ -2953,7 +2953,7 @@ void rem_port::drop_database(P_RLSE* /*release*/, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::end_blob(P_OP operation, P_RLSE * release, PACKET* sendL)
+ISC_STATUS RemPort::end_blob(P_OP operation, P_RLSE * release, PACKET* sendL)
 {
 /**************************************
  *
@@ -2986,7 +2986,7 @@ ISC_STATUS rem_port::end_blob(P_OP operation, P_RLSE * release, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::end_database(P_RLSE* /*release*/, PACKET* sendL)
+ISC_STATUS RemPort::end_database(P_RLSE* /*release*/, PACKET* sendL)
 {
 /**************************************
  *
@@ -3038,7 +3038,7 @@ ISC_STATUS rem_port::end_database(P_RLSE* /*release*/, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::end_request(P_RLSE * release, PACKET* sendL)
+ISC_STATUS RemPort::end_request(P_RLSE * release, PACKET* sendL)
 {
 /**************************************
  *
@@ -3068,7 +3068,7 @@ ISC_STATUS rem_port::end_request(P_RLSE * release, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::end_statement(P_SQLFREE* free_stmt, PACKET* sendL)
+ISC_STATUS RemPort::end_statement(P_SQLFREE* free_stmt, PACKET* sendL)
 {
 /*****************************************
  *
@@ -3140,7 +3140,7 @@ ISC_STATUS rem_port::end_statement(P_SQLFREE* free_stmt, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::end_transaction(P_OP operation, P_RLSE * release, PACKET* sendL)
+ISC_STATUS RemPort::end_transaction(P_OP operation, P_RLSE * release, PACKET* sendL)
 {
 /**************************************
  *
@@ -3196,7 +3196,7 @@ ISC_STATUS rem_port::end_transaction(P_OP operation, P_RLSE * release, PACKET* s
 }
 
 
-ISC_STATUS rem_port::execute_immediate(P_OP op, P_SQLST * exnow, PACKET* sendL)
+ISC_STATUS RemPort::execute_immediate(P_OP op, P_SQLST * exnow, PACKET* sendL)
 {
 /*****************************************
  *
@@ -3318,7 +3318,7 @@ ISC_STATUS rem_port::execute_immediate(P_OP op, P_SQLST * exnow, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::execute_statement(P_OP op, P_SQLDATA* sqldata, PACKET* sendL)
+ISC_STATUS RemPort::execute_statement(P_OP op, P_SQLDATA* sqldata, PACKET* sendL)
 {
 /*****************************************
  *
@@ -3456,7 +3456,7 @@ ISC_STATUS rem_port::execute_statement(P_OP op, P_SQLDATA* sqldata, PACKET* send
 }
 
 
-ISC_STATUS rem_port::fetch(P_SQLDATA * sqldata, PACKET* sendL)
+ISC_STATUS RemPort::fetch(P_SQLDATA * sqldata, PACKET* sendL)
 {
 /*****************************************
  *
@@ -3724,7 +3724,7 @@ static bool get_next_msg_no(Rrq* request, USHORT incarnation, USHORT * msg_numbe
 }
 
 
-ISC_STATUS rem_port::get_segment(P_SGMT* segment, PACKET* sendL)
+ISC_STATUS RemPort::get_segment(P_SGMT* segment, PACKET* sendL)
 {
 /**************************************
  *
@@ -3803,7 +3803,7 @@ ISC_STATUS rem_port::get_segment(P_SGMT* segment, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::get_slice(P_SLC * stuff, PACKET* sendL)
+ISC_STATUS RemPort::get_slice(P_SLC * stuff, PACKET* sendL)
 {
 /**************************************
  *
@@ -3863,7 +3863,7 @@ ISC_STATUS rem_port::get_slice(P_SLC * stuff, PACKET* sendL)
 }
 
 
-void rem_port::info(P_OP op, P_INFO* stuff, PACKET* sendL)
+void RemPort::info(P_OP op, P_INFO* stuff, PACKET* sendL)
 {
 /**************************************
  *
@@ -4032,7 +4032,7 @@ static Rtr* make_transaction (Rdb* rdb, ITransaction* iface)
 }
 
 
-static void ping_connection(rem_port* port, PACKET* send)
+static void ping_connection(RemPort* port, PACKET* send)
 {
 /**************************************
  *
@@ -4055,7 +4055,7 @@ static void ping_connection(rem_port* port, PACKET* send)
 }
 
 
-ISC_STATUS rem_port::open_blob(P_OP op, P_BLOB* stuff, PACKET* sendL)
+ISC_STATUS RemPort::open_blob(P_OP op, P_BLOB* stuff, PACKET* sendL)
 {
 /**************************************
  *
@@ -4122,7 +4122,7 @@ ISC_STATUS rem_port::open_blob(P_OP op, P_BLOB* stuff, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::prepare(P_PREP * stuff, PACKET* sendL)
+ISC_STATUS RemPort::prepare(P_PREP * stuff, PACKET* sendL)
 {
 /**************************************
  *
@@ -4151,7 +4151,7 @@ ISC_STATUS rem_port::prepare(P_PREP * stuff, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::prepare_statement(P_SQLST * prepareL, PACKET* sendL)
+ISC_STATUS RemPort::prepare_statement(P_SQLST * prepareL, PACKET* sendL)
 {
 /*****************************************
  *
@@ -4264,7 +4264,7 @@ ISC_STATUS rem_port::prepare_statement(P_SQLST * prepareL, PACKET* sendL)
 class DecrementRequestsQueued
 {
 public:
-	explicit DecrementRequestsQueued(rem_port* port) :
+	explicit DecrementRequestsQueued(RemPort* port) :
 		m_port(port)
 	{}
 
@@ -4279,7 +4279,7 @@ private:
 
 // Declared in serve_proto.h
 
-static bool process_packet(rem_port* port, PACKET* sendL, PACKET* receive, rem_port** result)
+static bool process_packet(RemPort* port, PACKET* sendL, PACKET* receive, RemPort** result)
 {
 /**************************************
  *
@@ -4312,7 +4312,7 @@ static bool process_packet(rem_port* port, PACKET* sendL, PACKET* receive, rem_p
 				***/
 
 				if (port->port_server->srvr_flags & SRVR_multi_client)
-					port->port_state = rem_port::BROKEN;
+					port->port_state = RemPort::BROKEN;
 				else
 				{
 					// gds__log("SERVER/process_packet: connect reject, server exiting");
@@ -4536,11 +4536,11 @@ static bool process_packet(rem_port* port, PACKET* sendL, PACKET* receive, rem_p
 		///case op_insert:
 		default:
 			gds__log("SERVER/process_packet: don't understand packet type %d", receive->p_operation);
-			port->port_state = rem_port::BROKEN;
+			port->port_state = RemPort::BROKEN;
 			break;
 		}
 
-		if (port && port->port_state == rem_port::BROKEN)
+		if (port && port->port_state == RemPort::BROKEN)
 		{
 			if (!port->port_parent)
 			{
@@ -4590,7 +4590,7 @@ static bool process_packet(rem_port* port, PACKET* sendL, PACKET* receive, rem_p
 }
 
 
-static bool continue_authentication(rem_port* port, PACKET* send, PACKET* receive)
+static bool continue_authentication(RemPort* port, PACKET* send, PACKET* receive)
 {
 /**************************************
  *
@@ -4653,7 +4653,7 @@ static bool continue_authentication(rem_port* port, PACKET* send, PACKET* receiv
 }
 
 
-ISC_STATUS rem_port::put_segment(P_OP op, P_SGMT * segment, PACKET* sendL)
+ISC_STATUS RemPort::put_segment(P_OP op, P_SGMT * segment, PACKET* sendL)
 {
 /**************************************
  *
@@ -4702,7 +4702,7 @@ ISC_STATUS rem_port::put_segment(P_OP op, P_SGMT * segment, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::put_slice(P_SLC * stuff, PACKET* sendL)
+ISC_STATUS RemPort::put_slice(P_SLC * stuff, PACKET* sendL)
 {
 /**************************************
  *
@@ -4735,7 +4735,7 @@ ISC_STATUS rem_port::put_slice(P_SLC * stuff, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::que_events(P_EVENT * stuff, PACKET* sendL)
+ISC_STATUS RemPort::que_events(P_EVENT * stuff, PACKET* sendL)
 {
 /**************************************
  *
@@ -4779,7 +4779,7 @@ ISC_STATUS rem_port::que_events(P_EVENT * stuff, PACKET* sendL)
 	event->rvnt_id = stuff->p_event_rid;
 	event->rvnt_rdb = rdb;
 
-	rem_port* asyncPort = rdb->rdb_port->port_async;
+	RemPort* asyncPort = rdb->rdb_port->port_async;
 	if (!asyncPort || (asyncPort->port_flags & PORT_detached))
 		Arg::Gds(isc_net_event_connect_err).copyTo(&status_vector);
 	else
@@ -4794,7 +4794,7 @@ ISC_STATUS rem_port::que_events(P_EVENT * stuff, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::receive_after_start(P_DATA* data, PACKET* sendL, IStatus* status_vector)
+ISC_STATUS RemPort::receive_after_start(P_DATA* data, PACKET* sendL, IStatus* status_vector)
 {
 /**************************************
  *
@@ -4845,7 +4845,7 @@ ISC_STATUS rem_port::receive_after_start(P_DATA* data, PACKET* sendL, IStatus* s
 }
 
 
-ISC_STATUS rem_port::receive_msg(P_DATA * data, PACKET* sendL)
+ISC_STATUS RemPort::receive_msg(P_DATA * data, PACKET* sendL)
 {
 /**************************************
  *
@@ -5205,7 +5205,7 @@ static void release_transaction( Rtr* transaction)
 }
 
 
-ISC_STATUS rem_port::seek_blob(P_SEEK* seek, PACKET* sendL)
+ISC_STATUS RemPort::seek_blob(P_SEEK* seek, PACKET* sendL)
 {
 /**************************************
  *
@@ -5234,7 +5234,7 @@ ISC_STATUS rem_port::seek_blob(P_SEEK* seek, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::send_msg(P_DATA * data, PACKET* sendL)
+ISC_STATUS RemPort::send_msg(P_DATA * data, PACKET* sendL)
 {
 /**************************************
  *
@@ -5271,7 +5271,7 @@ ISC_STATUS rem_port::send_msg(P_DATA * data, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::send_response(PACKET* p, OBJCT obj, ULONG length, const Firebird::IStatus* status, bool defer_flag)
+ISC_STATUS RemPort::send_response(PACKET* p, OBJCT obj, ULONG length, const Firebird::IStatus* status, bool defer_flag)
 {
 	StaticStatusVector tmp;
 	tmp.mergeStatus(status);
@@ -5279,7 +5279,7 @@ ISC_STATUS rem_port::send_response(PACKET* p, OBJCT obj, ULONG length, const Fir
 }
 
 
-ISC_STATUS rem_port::send_response(	PACKET*	sendL,
+ISC_STATUS RemPort::send_response(	PACKET*	sendL,
 							OBJCT	object,
 							ULONG	length,
 							const ISC_STATUS* status_vector,
@@ -5400,7 +5400,7 @@ ISC_STATUS rem_port::send_response(	PACKET*	sendL,
 		// there's no point in keeping the connection open
 		if (exit_code == isc_shutdown || exit_code == isc_att_shutdown)
 		{
-			this->port_state = rem_port::BROKEN;
+			this->port_state = RemPort::BROKEN;
 			this->port_flags |= PORT_rdb_shutdown;
 		}
 	}
@@ -5408,8 +5408,8 @@ ISC_STATUS rem_port::send_response(	PACKET*	sendL,
 	return exit_code;
 }
 
-// Maybe this can be a member of rem_port?
-static void send_error(rem_port* port, PACKET* apacket, ISC_STATUS errcode)
+// Maybe this can be a member of RemPort?
+static void send_error(RemPort* port, PACKET* apacket, ISC_STATUS errcode)
 {
 	LocalStatus ls;
 	CheckStatusWrapper status_vector(&ls);
@@ -5417,8 +5417,8 @@ static void send_error(rem_port* port, PACKET* apacket, ISC_STATUS errcode)
 	port->send_response(apacket, 0, 0, &status_vector, false);
 }
 
-// Maybe this can be a member of rem_port?
-static void send_error(rem_port* port, PACKET* apacket, const Firebird::Arg::StatusVector& err)
+// Maybe this can be a member of RemPort?
+static void send_error(RemPort* port, PACKET* apacket, const Firebird::Arg::StatusVector& err)
 {
 	LocalStatus ls;
 	CheckStatusWrapper status_vector(&ls);
@@ -5427,7 +5427,7 @@ static void send_error(rem_port* port, PACKET* apacket, const Firebird::Arg::Sta
 }
 
 
-static void attach_service(rem_port* port, P_ATCH* attach, PACKET* sendL)
+static void attach_service(RemPort* port, P_ATCH* attach, PACKET* sendL)
 {
 	WIRECRYPT_DEBUG(fprintf(stderr, "Line encryption %sabled on attach svc\n", port->port_crypt_complete ? "en" : "dis"));
 	if (port->port_crypt_level == WIRECRYPT_REQUIRED && !port->port_crypt_complete)
@@ -5459,7 +5459,7 @@ void ServiceAttachAuth::accept(PACKET* sendL, Auth::WriterImplementation* authBl
 }
 
 
-ISC_STATUS rem_port::service_attach(const char* service_name,
+ISC_STATUS RemPort::service_attach(const char* service_name,
 									ClumpletWriter* spb,
 									PACKET* sendL)
 {
@@ -5513,7 +5513,7 @@ ISC_STATUS rem_port::service_attach(const char* service_name,
 
 	if (!(status_vector.getState() & Firebird::IStatus::STATE_ERRORS))
 	{
-		dumpAuthBlock("rem_port::service_attach()", spb, isc_spb_auth_block);
+		dumpAuthBlock("RemPort::service_attach()", spb, isc_spb_auth_block);
 		ServService iface(provider->attachServiceManager(&status_vector, service_name,
 			(ULONG) spb->getBufferLength(), spb->getBuffer()));
 
@@ -5537,7 +5537,7 @@ ISC_STATUS rem_port::service_attach(const char* service_name,
 }
 
 
-ISC_STATUS rem_port::service_end(P_RLSE* /*release*/, PACKET* sendL)
+ISC_STATUS RemPort::service_end(P_RLSE* /*release*/, PACKET* sendL)
 {
 /**************************************
  *
@@ -5568,7 +5568,7 @@ ISC_STATUS rem_port::service_end(P_RLSE* /*release*/, PACKET* sendL)
 }
 
 
-void rem_port::service_start(P_INFO * stuff, PACKET* sendL)
+void RemPort::service_start(P_INFO * stuff, PACKET* sendL)
 {
 /**************************************
  *
@@ -5597,7 +5597,7 @@ void rem_port::service_start(P_INFO * stuff, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::set_cursor(P_SQLCUR * sqlcur, PACKET* sendL)
+ISC_STATUS RemPort::set_cursor(P_SQLCUR * sqlcur, PACKET* sendL)
 {
 /*****************************************
  *
@@ -5632,7 +5632,7 @@ ISC_STATUS rem_port::set_cursor(P_SQLCUR * sqlcur, PACKET* sendL)
 }
 
 
-void rem_port::start_crypt(P_CRYPT * crypt, PACKET* sendL)
+void RemPort::start_crypt(P_CRYPT * crypt, PACKET* sendL)
 /*****************************************
  *
  *	s t a r t _ c r y p t
@@ -5713,7 +5713,7 @@ void rem_port::start_crypt(P_CRYPT * crypt, PACKET* sendL)
 }
 
 
-void set_server(rem_port* port, USHORT flags)
+void set_server(RemPort* port, USHORT flags)
 {
 /**************************************
  *
@@ -5746,7 +5746,7 @@ void set_server(rem_port* port, USHORT flags)
 }
 
 
-ISC_STATUS rem_port::start(P_OP operation, P_DATA * data, PACKET* sendL)
+ISC_STATUS RemPort::start(P_OP operation, P_DATA * data, PACKET* sendL)
 {
 /**************************************
  *
@@ -5783,7 +5783,7 @@ ISC_STATUS rem_port::start(P_OP operation, P_DATA * data, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::start_and_send(P_OP operation, P_DATA* data, PACKET* sendL)
+ISC_STATUS RemPort::start_and_send(P_OP operation, P_DATA* data, PACKET* sendL)
 {
 /**************************************
  *
@@ -5830,7 +5830,7 @@ ISC_STATUS rem_port::start_and_send(P_OP operation, P_DATA* data, PACKET* sendL)
 }
 
 
-ISC_STATUS rem_port::start_transaction(P_OP operation, P_STTR * stuff, PACKET* sendL)
+ISC_STATUS RemPort::start_transaction(P_OP operation, P_STTR * stuff, PACKET* sendL)
 {
 /**************************************
  *
@@ -5925,7 +5925,7 @@ static THREAD_ENTRY_DECLARE loopThread(THREAD_ENTRY_PARAM)
 
 			while (request)
 			{
-				rem_port* port = NULL;
+				RemPort* port = NULL;
 
 				// Bind a thread to a port.
 
@@ -5954,7 +5954,7 @@ static THREAD_ENTRY_DECLARE loopThread(THREAD_ENTRY_PARAM)
 				{ // port_sync scope
 					RefMutexGuard portGuard(*request->req_port->port_sync, FB_FUNCTION);
 
-					if (request->req_port->port_state == rem_port::DISCONNECTED ||
+					if (request->req_port->port_state == RemPort::DISCONNECTED ||
 						!process_packet(request->req_port, &request->req_send, &request->req_receive, &port))
 					{
 						port = NULL;
@@ -5978,7 +5978,7 @@ static THREAD_ENTRY_DECLARE loopThread(THREAD_ENTRY_PARAM)
 						{
 							server_req_t* new_request = alloc_request();
 
-							const rem_port::RecvQueState recvState = port->getRecvState();
+							const RemPort::RecvQueState recvState = port->getRecvState();
 							port->receive(&new_request->req_receive);
 
 							if (new_request->req_receive.p_operation == op_partial)
@@ -6098,7 +6098,7 @@ static THREAD_ENTRY_DECLARE loopThread(THREAD_ENTRY_PARAM)
 }
 
 
-SSHORT rem_port::asyncReceive(PACKET* asyncPacket, const UCHAR* buffer, SSHORT dataSize)
+SSHORT RemPort::asyncReceive(PACKET* asyncPacket, const UCHAR* buffer, SSHORT dataSize)
 {
 /**************************************
  *
@@ -6176,7 +6176,7 @@ SSHORT rem_port::asyncReceive(PACKET* asyncPacket, const UCHAR* buffer, SSHORT d
 }
 
 
-ISC_STATUS rem_port::transact_request(P_TRRQ* trrq, PACKET* sendL)
+ISC_STATUS RemPort::transact_request(P_TRRQ* trrq, PACKET* sendL)
 {
 /**************************************
  *
