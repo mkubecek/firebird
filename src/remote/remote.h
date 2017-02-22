@@ -876,8 +876,6 @@ const USHORT PORT_compressed	= 0x1000;	// Compress outgoing stream (does not aff
 
 // Port itself
 
-typedef rem_port* (*t_port_connect)(rem_port*, PACKET*);
-
 typedef Firebird::RefPtr<rem_port> RemPortPtr;
 
 struct rem_port : public Firebird::GlobalStorage, public Firebird::RefCounted
@@ -898,7 +896,7 @@ struct rem_port : public Firebird::GlobalStorage, public Firebird::RefCounted
 	rem_port*		(*port_receive_packet)(rem_port*, PACKET*);
 	XDR_INT			(*port_send_packet)(rem_port*, PACKET*);
 	XDR_INT			(*port_send_partial)(rem_port*, PACKET*);
-	t_port_connect	port_connect;		// Establish secondary connection
+	rem_port*		(*port_connect)(rem_port*, PACKET*);	// Establish secondary connection
 	rem_port*		(*port_request)(rem_port*, PACKET*);	// Request to establish secondary connection
 	bool			(*port_select_multi)(rem_port*, UCHAR*, SSHORT, SSHORT*, RemPortPtr&);	// get packet from active port
 	void			(*port_abort_aux_connection)(rem_port*);	// stop waiting for secondary connection
@@ -1112,12 +1110,12 @@ public:
 public:
 	// TMN: Beginning of C++ port
 	// TMN: ugly, but at least a start
-	bool	accept(p_cnct* cnct);
-	void	disconnect();
-	void	force_close();
+	bool		accept(p_cnct* cnct);
+	void		disconnect();
+	void		force_close();
 	rem_port*	receive(PACKET* pckt);
-	XDR_INT	send(PACKET* pckt);
-	XDR_INT	send_partial(PACKET* pckt);
+	XDR_INT		send(PACKET* pckt);
+	XDR_INT		send_partial(PACKET* pckt);
 	rem_port*	connect(PACKET* pckt);
 	rem_port*	request(PACKET* pckt);
 	bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
