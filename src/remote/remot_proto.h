@@ -41,7 +41,7 @@ namespace Remote
 	typedef Auth::ParsedList ParsedList;
 }
 
-struct RemPort;
+class RemPort;
 struct rem_fmt;
 struct Rdb;
 typedef bool PacketReceive(RemPort*, UCHAR*, SSHORT, SSHORT*);

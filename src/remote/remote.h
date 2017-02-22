@@ -118,7 +118,7 @@ namespace os_utils
 	SOCKET accept(SOCKET sockfd, sockaddr *addr, socklen_t *addrlen);
 }
 
-struct RemPort;
+class RemPort;
 
 typedef Firebird::AutoPtr<UCHAR, Firebird::ArrayDelete<UCHAR> > UCharArrayAutoPtr;
 
@@ -878,8 +878,9 @@ const USHORT PORT_compressed	= 0x1000;	// Compress outgoing stream (does not aff
 
 typedef Firebird::RefPtr<RemPort> RemPortPtr;
 
-struct RemPort : public Firebird::GlobalStorage, public Firebird::RefCounted
+class RemPort : public Firebird::GlobalStorage, public Firebird::RefCounted
 {
+public:
 #ifdef DEV_BUILD
 	static Firebird::AtomicCounter portCounter;
 #endif
@@ -1026,8 +1027,8 @@ public:
 #endif
 	}
 
-private:
-	~RemPort();	// this is refCounted object - private dtor is OK
+protected:
+	virtual ~RemPort();	// this is refCounted object - protected dtor is OK
 
 public:
 	void initCompression();
