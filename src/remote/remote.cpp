@@ -648,11 +648,6 @@ void RemPort::unlinkParent()
 	this->port_parent = NULL;
 }
 
-RemPort* RemPort::receive(PACKET* pckt)
-{
-	return (*this->port_receive_packet)(this, pckt);
-}
-
 bool RemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port)
 {
 	return (*this->port_select_multi)(this, buffer, bufsize, length, port);

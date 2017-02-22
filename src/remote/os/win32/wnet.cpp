@@ -70,7 +70,6 @@ static bool		connect_client(RemPort*);
 static void		exit_handler(void*);
 #endif
 static rem_str*		make_pipe_name(const RefPtr<const Config>&, const TEXT*, const TEXT*, const TEXT*);
-static RemPort*	receive(RemPort*, PACKET*);
 static int		send_full(RemPort*, PACKET*);
 static int		send_partial(RemPort*, PACKET*);
 static int		xdrwnet_create(XDR*, RemPort*, UCHAR*, USHORT, xdr_op);
@@ -516,7 +515,6 @@ static WnetRemPort::WnetRemPort(RemPort* parent)
 	sprintf(buffer, "WNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_receive_packet = receive;
 	port_send_packet = send_full;
 	port_send_partial = send_partial;
 	port_connect = aux_connect;
@@ -873,7 +871,7 @@ static rem_str* make_pipe_name(const RefPtr<const Config>& config, const TEXT* c
 }
 
 
-static RemPort* receive( RemPort* main_port, PACKET* packet)
+RemPort* WnetRemPort::receive(PACKET* packet)
 {
 /**************************************
  *
@@ -889,13 +887,13 @@ static RemPort* receive( RemPort* main_port, PACKET* packet)
  **************************************/
 
 #ifdef DEV_BUILD
-	main_port->port_receive.x_client = !(main_port->port_flags & PORT_server);
+	port_receive.x_client = !(port_flags & PORT_server);
 #endif
 
-	if (!xdr_protocol(&main_port->port_receive, packet))
+	if (!xdr_protocol(&port_receive, packet))
 		packet->p_operation = op_exit;
 
-	return main_port;
+	return this;
 }
 
 

@@ -61,7 +61,6 @@ static void cleanup_comm(XCC);
 static void cleanup_port(RemPort*);
 static int cleanup_ports(const int, const int, void* arg);
 
-static RemPort* receive(RemPort*, PACKET*);
 static int send_full(RemPort*, PACKET*);
 static int send_partial(RemPort*, PACKET*);
 
@@ -680,7 +679,6 @@ XnetRemPort::XnetRemPort(RemPort* parent,
 	fb_utils::snprintf(buffer, sizeof(buffer), "XNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_receive_packet = receive;
 	port_send_packet = send_full;
 	port_send_partial = send_partial;
 	port_connect = aux_connect;
@@ -1565,7 +1563,7 @@ static int cleanup_ports(const int, const int, void* /*arg*/)
 }
 
 
-static RemPort* receive( RemPort* main_port, PACKET* packet)
+RemPort* XnetRemPort::receive(PACKET* packet)
 {
 /**************************************
  *

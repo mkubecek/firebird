@@ -467,7 +467,6 @@ static void packet_print(const TEXT*, const UCHAR*, int, ULONG);
 static bool		packet_receive(RemPort*, UCHAR*, SSHORT, SSHORT*);
 static bool		packet_receive2(RemPort*, UCHAR*, SSHORT, SSHORT*);
 static bool		packet_send(RemPort*, const SCHAR*, SSHORT);
-static RemPort*		receive(RemPort*, PACKET *);
 static RemPort*		select_accept(RemPort*);
 
 static void		select_port(RemPort*, Select*, RemPortPtr&);
@@ -1329,7 +1328,6 @@ InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
 	SNPRINTF(buffer, FB_NELEM(buffer), "tcp (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_receive_packet = ::receive;
 	port_select_multi = ::select_multi;
 	port_send_packet = send_full;
 	port_send_partial = ::send_partial;
@@ -1899,7 +1897,7 @@ bool inet_aton(const char* name, in_addr* address)
 #endif
 
 
-static RemPort* receive( RemPort* main_port, PACKET * packet)
+RemPort* InetRemPort::receive(PACKET* packet)
 {
 /**************************************
  *
@@ -1921,16 +1919,16 @@ static RemPort* receive( RemPort* main_port, PACKET * packet)
 	// this routine is called
 
 #ifdef DEV_BUILD
-	main_port->port_receive.x_client = !(main_port->port_flags & PORT_server);
+	port_receive.x_client = !(port_flags & PORT_server);
 #endif
 	do {
-		if (!xdr_protocol(&main_port->port_receive, packet))
+		if (!xdr_protocol(&port_receive, packet))
 		{
-			packet->p_operation = main_port->port_flags & PORT_partial_data ? op_partial : op_exit;
-			main_port->port_flags &= ~PORT_partial_data;
+			packet->p_operation = port_flags & PORT_partial_data ? op_partial : op_exit;
+			port_flags &= ~PORT_partial_data;
 
 			if (packet->p_operation == op_exit) {
-				main_port->port_state = RemPort::BROKEN;
+				port_state = RemPort::BROKEN;
 			}
 			break;
 		}
@@ -1949,7 +1947,7 @@ static RemPort* receive( RemPort* main_port, PACKET * packet)
 #endif
 	} while (packet->p_operation == op_dummy);
 
-	return main_port;
+	return this;
 }
 
 static bool select_multi(RemPort* main_port, UCHAR* buffer, SSHORT bufsize, SSHORT* length,
