@@ -54,7 +54,7 @@ using namespace Firebird;
 using namespace Remote;
 
 static bool accept_connection(RemPort*, const P_CNCT*);
-static RemPort* alloc_port(RemPort*, UCHAR*, ULONG, UCHAR*, ULONG);
+static XnetRemPort* alloc_port(RemPort*, UCHAR*, ULONG, UCHAR*, ULONG);
 static RemPort* aux_connect(RemPort*, PACKET*);
 static RemPort* aux_request(RemPort*, PACKET*);
 
@@ -669,11 +669,48 @@ static bool accept_connection(RemPort* port, const P_CNCT* cnct)
 }
 
 
-static RemPort* alloc_port(RemPort* parent,
-							UCHAR* send_buffer,
-							ULONG send_length,
-							UCHAR* receive_buffer,
-							ULONG /*receive_length*/)
+XnetRemPort::XnetRemPort(RemPort* parent,
+						 UCHAR* send_buffer,
+						 ULONG send_length,
+						 UCHAR* receive_buffer,
+						 ULONG /*receive_length*/)
+	: RemPort(RemPort::XNET, 0)
+{
+	TEXT buffer[BUFFER_TINY];
+	ISC_get_host(buffer, sizeof(buffer));
+	port_host = REMOTE_make_string(buffer);
+	port_connection = REMOTE_make_string(buffer);
+	fb_utils::snprintf(buffer, sizeof(buffer), "XNet (%s)", port_host->str_data);
+	port_version = REMOTE_make_string(buffer);
+
+	port_accept = accept_connection;
+	port_disconnect = disconnect;
+	port_force_close = force_close;
+	port_receive_packet = receive;
+	port_send_packet = send_full;
+	port_send_partial = send_partial;
+	port_connect = aux_connect;
+	port_request = aux_request;
+	port_buff_size = send_length;
+
+	xdrxnet_create(&port_send, this, send_buffer, send_length, XDR_ENCODE);
+	xdrxnet_create(&port_receive, this, receive_buffer, 0, XDR_DECODE);
+
+	if (parent)
+	{
+		delete port_connection;
+		port_connection = REMOTE_make_string(parent->port_connection->str_data);
+
+		linkParent(parent);
+	}
+}
+
+
+static XnetRemPort* alloc_port(RemPort* parent,
+							   UCHAR* send_buffer,
+							   ULONG send_length,
+							   UCHAR* receive_buffer,
+							   ULONG receive_length)
 {
 /**************************************
  *
@@ -686,37 +723,8 @@ static RemPort* alloc_port(RemPort* parent,
  *	and initialize input and output XDR streams.
  *
  **************************************/
-	RemPort* const port = FB_NEW RemPort(RemPort::XNET, 0);
 
-	TEXT buffer[BUFFER_TINY];
-	ISC_get_host(buffer, sizeof(buffer));
-	port->port_host = REMOTE_make_string(buffer);
-	port->port_connection = REMOTE_make_string(buffer);
-	fb_utils::snprintf(buffer, sizeof(buffer), "XNet (%s)", port->port_host->str_data);
-	port->port_version = REMOTE_make_string(buffer);
-
-	port->port_accept = accept_connection;
-	port->port_disconnect = disconnect;
-	port->port_force_close = force_close;
-	port->port_receive_packet = receive;
-	port->port_send_packet = send_full;
-	port->port_send_partial = send_partial;
-	port->port_connect = aux_connect;
-	port->port_request = aux_request;
-	port->port_buff_size = send_length;
-
-	xdrxnet_create(&port->port_send, port, send_buffer, send_length, XDR_ENCODE);
-	xdrxnet_create(&port->port_receive, port, receive_buffer, 0, XDR_DECODE);
-
-	if (parent)
-	{
-		delete port->port_connection;
-		port->port_connection = REMOTE_make_string(parent->port_connection->str_data);
-
-		port->linkParent(parent);
-	}
-
-	return port;
+	return FB_NEW XnetRemPort(parent, send_buffer, send_length, receive_buffer, receive_length);
 }
 
 
@@ -813,9 +821,9 @@ static RemPort* aux_connect(RemPort* port, PACKET* /*packet*/)
 			((UCHAR*) xcc->xcc_mapped_addr + sizeof(struct xps) + (XNET_EVENT_SPACE));
 
 		// alloc new port and link xcc to it
-		RemPort* const new_port = alloc_port(NULL,
-											  channel_c2s_client_ptr, xcc->xcc_send_channel->xch_size,
-											  channel_s2c_client_ptr, xcc->xcc_recv_channel->xch_size);
+		XnetRemPort* const new_port = alloc_port(NULL,
+												 channel_c2s_client_ptr, xcc->xcc_send_channel->xch_size,
+												 channel_s2c_client_ptr, xcc->xcc_recv_channel->xch_size);
 
 		port->port_async = new_port;
 		new_port->port_flags = port->port_flags & PORT_no_oob;
@@ -944,9 +952,9 @@ static RemPort* aux_request(RemPort* port, PACKET* packet)
 			((UCHAR*) xcc->xcc_mapped_addr + sizeof(struct xps));
 
 		// alloc new port and link xcc to it
-		RemPort* const new_port = alloc_port(NULL,
-											  channel_s2c_client_ptr, xcc->xcc_send_channel->xch_size,
-											  channel_c2s_client_ptr, xcc->xcc_recv_channel->xch_size);
+		XnetRemPort* const new_port = alloc_port(NULL,
+												 channel_s2c_client_ptr, xcc->xcc_send_channel->xch_size,
+												 channel_c2s_client_ptr, xcc->xcc_recv_channel->xch_size);
 
 		new_port->port_xcc = xcc;
 		new_port->port_flags = (port->port_flags & PORT_no_oob) | PORT_connecting;
@@ -1333,7 +1341,7 @@ RemPort* XnetClientEndPoint::connect_client(PACKET* packet, const RefPtr<const C
 		UCHAR* const channel_c2s_client_ptr = start_ptr;
 		UCHAR* const channel_s2c_client_ptr = start_ptr + avail;
 
-		RemPort* const port =
+		XnetRemPort* const port =
 			alloc_port(NULL,
 					   channel_c2s_client_ptr, xcc->xcc_send_channel->xch_size,
 					   channel_s2c_client_ptr, xcc->xcc_recv_channel->xch_size);

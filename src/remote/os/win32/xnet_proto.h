@@ -37,4 +37,13 @@ RemPort* XNET_analyze(ClntAuthBlock*, const Firebird::PathName&, bool, Firebird:
 RemPort* XNET_connect(struct packet*, USHORT, Firebird::RefPtr<const Config>*);
 RemPort* XNET_reconnect(ULONG);
 
+#ifndef NO_PORT
+class XnetRemPort : public RemPort
+{
+public:
+	XnetRemPort(RemPort* parent, UCHAR* send_buffer, ULONG send_length,
+				UCHAR* receive_buffer, ULONG receive_length);
+};
+#endif // NO_PORT
+
 #endif // REMOTE_XNET_PROTO_H
