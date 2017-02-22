@@ -66,7 +66,6 @@ static WnetRemPort*	alloc_port(RemPort*);
 static RemPort*		aux_connect(RemPort*, PACKET*);
 static RemPort*		aux_request(RemPort*, PACKET*);
 static bool		connect_client(RemPort*);
-static void		disconnect(RemPort*);
 #ifdef NOT_USED_OR_REPLACED
 static void		exit_handler(void*);
 #endif
@@ -234,14 +233,14 @@ RemPort* WNET_analyze(ClntAuthBlock* cBlock,
 		}
 		catch (const Firebird::Exception&)
 		{
-			disconnect(port);
+			port->disconnect();
 			delete rdb;
 			throw;
 		}
 		// fall through - response is not a required accept
 
 	default:
-		disconnect(port);
+		port->disconnect();
 		delete rdb;
 		Arg::Gds(isc_connect_reject).raise();
 		break;
@@ -309,7 +308,7 @@ RemPort* WNET_connect(const TEXT* name, PACKET* packet, USHORT flag, Firebird::R
 			if (status != ERROR_PIPE_BUSY)
 			{
 				wnet_error(port, "CreateFile", isc_net_connect_err, status);
-				disconnect(port);
+				port->disconnect();
 				return NULL;
 			}
 			WaitNamedPipe(port->port_connection->str_data, 3000L);
@@ -337,13 +336,13 @@ RemPort* WNET_connect(const TEXT* name, PACKET* packet, USHORT flag, Firebird::R
 			const DWORD dwError = GetLastError();
 			if (dwError == ERROR_CALL_NOT_IMPLEMENTED)
 			{
-				disconnect(port);
+				port->disconnect();
 				wnet_shutdown = true;
 				break;
 			}
 
 			wnet_error(port, "CreateNamedPipe", isc_net_connect_listen_err, dwError);
-			disconnect(port);
+			port->disconnect();
 			return NULL;
 		}
 
@@ -395,7 +394,7 @@ RemPort* WNET_connect(const TEXT* name, PACKET* packet, USHORT flag, Firebird::R
 		}
 
 		if (wnet_shutdown)
-			disconnect(port);
+			port->disconnect();
 	}
 
 	if (wnet_shutdown)
@@ -518,7 +517,6 @@ static WnetRemPort::WnetRemPort(RemPort* parent)
 	sprintf(buffer, "WNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_disconnect = disconnect;
 	port_force_close = force_close;
 	port_receive_packet = receive;
 	port_send_packet = send_full;
@@ -668,7 +666,7 @@ static RemPort* aux_request( RemPort* vport, PACKET* packet)
 	if (new_port->port_pipe == INVALID_HANDLE_VALUE)
 	{
 		wnet_error(new_port, "CreateNamedPipe", isc_net_event_listen_err, ERRNO);
-		disconnect(new_port);
+		new_port->disconnect();
 		return NULL;
 	}
 
@@ -716,7 +714,7 @@ static bool connect_client(RemPort *port)
 			if (!wnet_shutdown) {
 				wnet_error(port, "ConnectNamedPipe", isc_net_connect_err, err);
 			}
-			disconnect(port);
+			port->disconnect();
 			return false;
 		}
 	}
@@ -724,7 +722,7 @@ static bool connect_client(RemPort *port)
 }
 
 
-static void disconnect(RemPort* port)
+void WnetRemPort::disconnect()
 {
 /**************************************
  *
@@ -737,35 +735,35 @@ static void disconnect(RemPort* port)
  *
  **************************************/
 
-	if (port->port_async)
+	if (port_async)
 	{
-		disconnect(port->port_async);
-		port->port_async = NULL;
+		port_async->disconnect();
+		port_async = NULL;
 	}
-	port->port_context = NULL;
+	port_context = NULL;
 
 	// If this is a sub-port, unlink it from its parent
-	port->unlinkParent();
-	port->port_flags &= ~PORT_connecting;
+	unlinkParent();
+	port_flags &= ~PORT_connecting;
 
-	if (port->port_server_flags & SRVR_server)
+	if (port_server_flags & SRVR_server)
 	{
-		FlushFileBuffers(port->port_pipe);
-		DisconnectNamedPipe(port->port_pipe);
+		FlushFileBuffers(port_pipe);
+		DisconnectNamedPipe(port_pipe);
 	}
-	if (port->port_event != INVALID_HANDLE_VALUE)
+	if (port_event != INVALID_HANDLE_VALUE)
 	{
-		CloseHandle(port->port_event);
-		port->port_event = INVALID_HANDLE_VALUE;
+		CloseHandle(port_event);
+		port_event = INVALID_HANDLE_VALUE;
 	}
-	if (port->port_pipe != INVALID_HANDLE_VALUE)
+	if (port_pipe != INVALID_HANDLE_VALUE)
 	{
-		CloseHandle(port->port_pipe);
-		port->port_pipe = INVALID_HANDLE_VALUE;
+		CloseHandle(port_pipe);
+		port_pipe = INVALID_HANDLE_VALUE;
 	}
 
-	wnet_ports->unRegisterPort(port);
-	port->release();
+	wnet_ports->unRegisterPort(this);
+	release();
 }
 
 

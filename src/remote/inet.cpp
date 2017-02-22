@@ -422,7 +422,6 @@ static GlobalPtr<Mutex> waitThreadMutex;
 static unsigned int procCount = 0;
 #endif // WIN_NT
 
-static void		disconnect(RemPort*);
 static void		force_close(RemPort*);
 static int		cleanup_ports(const int, const int, void*);
 
@@ -698,7 +697,7 @@ RemPort* INET_analyze(ClntAuthBlock* cBlock,
 			}
 			catch (const Exception&)
 			{
-				disconnect(port);
+				port->disconnect();
 				delete rdb;
 				throw;
 			}
@@ -712,14 +711,14 @@ RemPort* INET_analyze(ClntAuthBlock* cBlock,
 			}
 			catch (const Exception&)
 			{
-				disconnect(port);
+				port->disconnect();
 				delete rdb;
 				throw;
 			}
 			// fall through - response is not a required accept
 
 		default:
-			disconnect(port);
+			port->disconnect();
 			delete rdb;
 			Arg::Gds(isc_connect_reject).raise();
 			break;
@@ -1331,7 +1330,6 @@ InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
 	SNPRINTF(buffer, FB_NELEM(buffer), "tcp (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_disconnect = ::disconnect;
 	port_force_close = ::force_close;
 	port_receive_packet = ::receive;
 	port_select_multi = ::select_multi;
@@ -1631,7 +1629,7 @@ static THREAD_ENTRY_DECLARE waitThread(THREAD_ENTRY_PARAM)
 }
 #endif // !defined(WIN_NT)
 
-static void disconnect(RemPort* const port)
+void InetRemPort::disconnect()
 {
 /**************************************
  *
@@ -1653,53 +1651,53 @@ static void disconnect(RemPort* const port)
 	// is an attempt to return the socket to a state where a graceful shutdown can
 	// occur.
 
-	if (port->port_linger.l_onoff)
+	if (port_linger.l_onoff)
 	{
-		setsockopt(port->port_handle, SOL_SOCKET, SO_LINGER,
-				   (SCHAR*) &port->port_linger, sizeof(port->port_linger));
+		setsockopt(port_handle, SOL_SOCKET, SO_LINGER,
+				   (SCHAR*) &port_linger, sizeof(port_linger));
 	}
 
-	if (port->port_handle != INVALID_SOCKET)
+	if (port_handle != INVALID_SOCKET)
 	{
-		shutdown(port->port_handle, 2);
+		shutdown(port_handle, 2);
 	}
 
 	MutexLockGuard guard(port_mutex, FB_FUNCTION);
-	port->port_state = RemPort::DISCONNECTED;
-	port->port_flags &= ~PORT_connecting;
+	port_state = RemPort::DISCONNECTED;
+	port_flags &= ~PORT_connecting;
 
-	if (port->port_async)
+	if (port_async)
 	{
-		disconnect(port->port_async);
-		port->port_async = NULL;
+		port_async->disconnect();
+		port_async = NULL;
 	}
-	port->port_context = NULL;
+	port_context = NULL;
 
 	// hvlad: delay closing of the server sockets to prevent its reuse
 	// by another (newly accepted) port until next select() call. See
 	// also select_wait() function.
-	const bool delayClose = (port->port_server_flags && port->port_parent);
+	const bool delayClose = (port_server_flags && port_parent);
 
 	// If this is a sub-port, unlink it from its parent
-	port->unlinkParent();
+	unlinkParent();
 
-	inet_ports->unRegisterPort(port);
+	inet_ports->unRegisterPort(this);
 
 	if (delayClose)
 	{
-		if (port->port_handle != INVALID_SOCKET)
-			ports_to_close->push(port->port_handle);
+		if (port_handle != INVALID_SOCKET)
+			ports_to_close->push(port_handle);
 
-		if (port->port_channel != INVALID_SOCKET)
-			ports_to_close->push(port->port_channel);
+		if (port_channel != INVALID_SOCKET)
+			ports_to_close->push(port_channel);
 	}
 	else
 	{
-		SOCLOSE(port->port_handle);
-		SOCLOSE(port->port_channel);
+		SOCLOSE(port_handle);
+		SOCLOSE(port_channel);
 	}
 
-	port->release();
+	release();
 
 #ifdef DEBUG
 	if (INET_trace & TRACE_summary)
@@ -2438,7 +2436,7 @@ static void inet_gen_error(bool releasePort, RemPort* port, const Arg::StatusVec
 
 	if (releasePort)
 	{
-		disconnect(port);
+		port->disconnect();
 	}
 
 	Arg::Gds error(isc_network_error);

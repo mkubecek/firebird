@@ -44,6 +44,7 @@ public:
 	WnetRemPort(RemPort* parent);
 
 	virtual bool		accept(const p_cnct* cnct);
+	virtual void		disconnect();
 };
 
 #endif // REMOTE_WNET_PROTO_H

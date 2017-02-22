@@ -45,6 +45,7 @@ public:
 				UCHAR* receive_buffer, ULONG receive_length);
 
 	virtual bool		accept(const p_cnct* cnct);
+	virtual void		disconnect();
 };
 #endif // NO_PORT
 

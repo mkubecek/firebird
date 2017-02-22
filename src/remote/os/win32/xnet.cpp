@@ -59,7 +59,6 @@ static RemPort* aux_request(RemPort*, PACKET*);
 
 static void cleanup_comm(XCC);
 static void cleanup_port(RemPort*);
-static void disconnect(RemPort*);
 static void force_close(RemPort*);
 static int cleanup_ports(const int, const int, void* arg);
 
@@ -365,14 +364,14 @@ RemPort* XNET_analyze(ClntAuthBlock* cBlock,
 		}
 		catch (const Firebird::Exception&)
 		{
-			disconnect(port);
+			port->disconnect();
 			delete rdb;
 			throw;
 		}
 		// fall through - response is not a required accept
 
 	default:
-		disconnect(port);
+		port->disconnect();
 		delete rdb;
 		Arg::Gds(isc_connect_reject).raise();
 		break;
@@ -682,7 +681,6 @@ XnetRemPort::XnetRemPort(RemPort* parent,
 	fb_utils::snprintf(buffer, sizeof(buffer), "XNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_disconnect = disconnect;
 	port_force_close = force_close;
 	port_receive_packet = receive;
 	port_send_packet = send_full;
@@ -1474,7 +1472,7 @@ RemPort* XnetServerEndPoint::connect_server(USHORT flag)
 }
 
 
-static void disconnect(RemPort* port)
+void XnetRemPort::disconnect()
 {
 /**************************************
  *
@@ -1487,18 +1485,18 @@ static void disconnect(RemPort* port)
  *
  **************************************/
 
-	if (port->port_async)
+	if (port_async)
 	{
-		disconnect(port->port_async);
-		port->port_async = NULL;
+		port_async->disconnect();
+		port_async = NULL;
 	}
-	port->port_context = NULL;
+	port_context = NULL;
 
 	// If this is a sub-port, unlink it from it's parent
-	port->unlinkParent();
-	port->port_flags &= ~PORT_connecting;
-	xnet_ports->unRegisterPort(port);
-	cleanup_port(port);
+	unlinkParent();
+	port_flags &= ~PORT_connecting;
+	xnet_ports->unRegisterPort(this);
+	cleanup_port(this);
 }
 
 

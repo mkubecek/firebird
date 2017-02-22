@@ -54,6 +54,7 @@ public:
 	InetRemPort(RemPort* const parent, const USHORT flags);
 
 	virtual bool		accept(const p_cnct* cnct);
+	virtual void		disconnect();
 };
 
 #endif // REMOTE_INET_PROTO_H
