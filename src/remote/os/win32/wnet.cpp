@@ -63,7 +63,7 @@ static volatile bool wnet_initialized = false;
 static volatile bool wnet_shutdown = false;
 
 static bool		accept_connection(RemPort*, const P_CNCT*);
-static RemPort*		alloc_port(RemPort*);
+static WnetRemPort*	alloc_port(RemPort*);
 static RemPort*		aux_connect(RemPort*, PACKET*);
 static RemPort*		aux_request(RemPort*, PACKET*);
 static bool		connect_client(RemPort*);
@@ -285,7 +285,7 @@ RemPort* WNET_connect(const TEXT* name, PACKET* packet, USHORT flag, Firebird::R
  *	connect is for a server process.
  *
  **************************************/
-	RemPort* const port = alloc_port(0);
+	WnetRemPort* const port = alloc_port(0);
 	if (config)
 	{
 		port->port_config = *config;
@@ -424,7 +424,7 @@ RemPort* WNET_reconnect(HANDLE handle)
  *	a port block.
  *
  **************************************/
-	RemPort* const port = alloc_port(0);
+	WnetRemPort* const port = alloc_port(0);
 
 	delete port->port_connection;
 	port->port_connection = make_pipe_name(port->getPortConfig(), NULL, SERVER_PIPE_SUFFIX, 0);
@@ -485,8 +485,20 @@ static bool accept_connection( RemPort* port, const P_CNCT* cnct)
 	return true;
 }
 
+WnetInitializer::WnetInitializer()
+{
+	if (wnet_initialized)
+		return;
+	MutexLockGuard guard(init_mutex, FB_FUNCTION);
+	if (wnet_initialized)
+		return;
 
-static RemPort* alloc_port( RemPort* parent)
+	wnet_initialized = true;
+	fb_shutdown_callback(0, cleanup_ports, fb_shut_postproviders, 0);
+}
+
+static WnetRemPort::WnetRemPort(RemPort* parent)
+	: WnetInitializer(), RemPort(RemPort::PIPE, BUFFER_SIZE * 2)
 {
 /**************************************
  *
@@ -500,52 +512,54 @@ static RemPort* alloc_port( RemPort* parent)
  *
  **************************************/
 
-	if (!wnet_initialized)
-	{
-		MutexLockGuard guard(init_mutex, FB_FUNCTION);
-		if (!wnet_initialized)
-		{
-			wnet_initialized = true;
-			fb_shutdown_callback(0, cleanup_ports, fb_shut_postproviders, 0);
-		}
-	}
-
-	RemPort* port = FB_NEW RemPort(RemPort::PIPE, BUFFER_SIZE * 2);
-
 	TEXT buffer[BUFFER_TINY];
 	ISC_get_host(buffer, sizeof(buffer));
-	port->port_host = REMOTE_make_string(buffer);
-	port->port_connection = REMOTE_make_string(buffer);
-	sprintf(buffer, "WNet (%s)", port->port_host->str_data);
-	port->port_version = REMOTE_make_string(buffer);
+	port_host = REMOTE_make_string(buffer);
+	port_connection = REMOTE_make_string(buffer);
+	sprintf(buffer, "WNet (%s)", port_host->str_data);
+	port_version = REMOTE_make_string(buffer);
 
-	port->port_accept = accept_connection;
-	port->port_disconnect = disconnect;
-	port->port_force_close = force_close;
-	port->port_receive_packet = receive;
-	port->port_send_packet = send_full;
-	port->port_send_partial = send_partial;
-	port->port_connect = aux_connect;
-	port->port_request = aux_request;
-	port->port_buff_size = BUFFER_SIZE;
+	port_accept = accept_connection;
+	port_disconnect = disconnect;
+	port_force_close = force_close;
+	port_receive_packet = receive;
+	port_send_packet = send_full;
+	port_send_partial = send_partial;
+	port_connect = aux_connect;
+	port_request = aux_request;
+	port_buff_size = BUFFER_SIZE;
 
-	port->port_event = CreateEvent(NULL, TRUE, TRUE, NULL);
+	port_event = CreateEvent(NULL, TRUE, TRUE, NULL);
 
-	xdrwnet_create(&port->port_send, port, &port->port_buffer[BUFFER_SIZE], BUFFER_SIZE, XDR_ENCODE);
+	xdrwnet_create(&port_send, this, &port_buffer[BUFFER_SIZE], BUFFER_SIZE, XDR_ENCODE);
 
-	xdrwnet_create(&port->port_receive, port, port->port_buffer, 0, XDR_DECODE);
+	xdrwnet_create(&port_receive, this, port_buffer, 0, XDR_DECODE);
 
 	if (parent)
 	{
-		delete port->port_connection;
-		port->port_connection = REMOTE_make_string(parent->port_connection->str_data);
+		delete port_connection;
+		port_connection = REMOTE_make_string(port_connection->str_data);
 
-		port->linkParent(parent);
+		linkParent(parent);
 	}
-
-	return port;
 }
 
+static WnetRemPort* alloc_port(RemPort* parent)
+{
+/**************************************
+ *
+ *	a l l o c _ p o r t
+ *
+ **************************************
+ *
+ * Functional description
+ *	Allocate a port block, link it in to parent (if there is a parent),
+ *	and initialize input and output XDR streams.
+ *
+ **************************************/
+
+	return FB_NEW WnetRemPort(parent);
+}
 
 static RemPort* aux_connect( RemPort* port, PACKET* packet)
 {
@@ -587,7 +601,7 @@ static RemPort* aux_connect( RemPort* port, PACKET* packet)
 		p = str_pid;
 	}
 
-	RemPort* const new_port = alloc_port(port->port_parent);
+	WnetRemPort* const new_port = alloc_port(port->port_parent);
 	port->port_async = new_port;
 	new_port->port_flags = port->port_flags & PORT_no_oob;
 	new_port->port_flags |= PORT_async;
@@ -633,7 +647,7 @@ static RemPort* aux_request( RemPort* vport, PACKET* packet)
 
 	const DWORD server_pid = (vport->port_server_flags & SRVR_multi_client) ?
 		++event_counter : GetCurrentProcessId();
-	RemPort* const new_port = alloc_port(vport->port_parent);
+	WnetRemPort* const new_port = alloc_port(vport->port_parent);
 	new_port->port_server_flags = vport->port_server_flags;
 	new_port->port_flags = (vport->port_flags & PORT_no_oob) | PORT_connecting;
 	vport->port_async = new_port;

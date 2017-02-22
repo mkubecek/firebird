@@ -32,4 +32,16 @@ RemPort*	WNET_connect(const TEXT*, struct packet*, USHORT, Firebird::RefPtr<cons
 RemPort*	WNET_reconnect(HANDLE);
 
 
+class WnetInitializer
+{
+protected:
+	WnetInitializer();
+};
+
+class WnetRemPort : protected WnetInitializer, public RemPort
+{
+public:
+	WnetRemPort(RemPort* parent);
+};
+
 #endif // REMOTE_WNET_PROTO_H
