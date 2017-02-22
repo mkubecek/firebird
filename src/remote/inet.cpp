@@ -411,7 +411,7 @@ static bool		accept_connection(RemPort*, const P_CNCT*);
 #ifdef HAVE_SETITIMER
 static void		alarm_handler(int);
 #endif
-static RemPort*		alloc_port(RemPort*, const USHORT = 0);
+static InetRemPort*	alloc_port(RemPort*, const USHORT = 0);
 static RemPort*		aux_connect(RemPort*, PACKET*);
 static void				abort_aux_connection(RemPort*);
 static RemPort*		aux_request(RemPort*, PACKET*);
@@ -461,7 +461,7 @@ static RemPort*		inet_try_connect(	PACKET*,
 									const PathName*,
 									int);
 static bool		inet_write(XDR*);
-static RemPort* listener_socket(RemPort* port, USHORT flag, const addrinfo* pai);
+static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrinfo* pai);
 
 #ifdef DEBUG
 static void packet_print(const TEXT*, const UCHAR*, int, ULONG);
@@ -525,7 +525,7 @@ static GlobalPtr<Mutex> init_mutex;
 static volatile bool INET_initialized = false;
 static volatile bool INET_shutting_down = false;
 static Firebird::GlobalPtr<Select> INET_select;
-static RemPort* inet_async_receive = NULL;
+static InetRemPort* inet_async_receive = NULL;
 
 
 static GlobalPtr<Mutex> port_mutex;
@@ -799,7 +799,7 @@ RemPort* INET_connect(const TEXT* name,
 	}
 #endif
 
-	RemPort* port = alloc_port(NULL);
+	InetRemPort* port = alloc_port(NULL);
 	if (config)
 	{
 		port->port_config = *config;
@@ -973,7 +973,7 @@ exit_free:
 	return port;
 }
 
-static RemPort* listener_socket(RemPort* port, USHORT flag, const addrinfo* pai)
+static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrinfo* pai)
 {
 /**************************************
  *
@@ -1154,7 +1154,7 @@ RemPort* INET_reconnect(SOCKET handle)
  *	a port block.
  *
  **************************************/
-	RemPort* const port = alloc_port(NULL);
+	InetRemPort* const port = alloc_port(NULL);
 
 	port->port_handle = handle;
 	port->port_flags |= PORT_server;
@@ -1187,7 +1187,7 @@ RemPort* INET_server(SOCKET sock)
  *
  **************************************/
 	int n = 0;
-	RemPort* const port = alloc_port(NULL);
+	InetRemPort* const port = alloc_port(NULL);
 	port->port_flags |= PORT_server;
 	port->port_server_flags |= SRVR_server;
 	port->port_handle = sock;
@@ -1279,7 +1279,88 @@ static bool accept_connection(RemPort* port, const P_CNCT* cnct)
 }
 
 
-static RemPort* alloc_port(RemPort* const parent, const USHORT flags)
+InetInitializer::InetInitializer()
+{
+	if (INET_initialized)
+		return;
+	MutexLockGuard guard(init_mutex, FB_FUNCTION);
+	if (INET_initialized)
+		return;
+
+#ifdef WIN_NT
+	static WSADATA wsadata;
+	const WORD version = MAKEWORD(2, 0);
+	const int wsaError = WSAStartup(version, &wsadata);
+	if (wsaError)
+	{
+		gds__log("INET/inet_error: WSAStartup errno = %d", wsaError);
+
+		Arg::Gds error(isc_network_error);
+		error << Arg::Gds(isc_net_init_error) << SYS_ERR(wsaError);
+		error.raise();
+	}
+	fb_shutdown_callback(0, wsaExitHandler, fb_shut_finish, 0);
+#endif
+	INET_remote_buffer = Config::getTcpRemoteBufferSize();
+	if (INET_remote_buffer < MAX_DATA_LW || INET_remote_buffer > MAX_DATA_HW)
+	{
+		INET_remote_buffer = DEF_MAX_DATA;
+	}
+#ifdef DEBUG
+	gds__log(" Info: Remote Buffer Size set to %ld", INET_remote_buffer);
+#endif
+
+	fb_shutdown_callback(0, cleanup_ports, fb_shut_postproviders, 0);
+
+	INET_initialized = true;
+
+	// This must go AFTER 'INET_initialized = true' to avoid recursion
+	inet_async_receive = alloc_port(0);
+	inet_async_receive->port_flags |= PORT_server;
+}
+
+InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
+	: InetInitializer(), RemPort(RemPort::INET, INET_remote_buffer * 2)
+{
+	REMOTE_get_timeout_params(this, 0);
+
+	TEXT buffer[BUFFER_SMALL];
+	gethostname(buffer, sizeof(buffer));
+
+	port_host = REMOTE_make_string(buffer);
+	port_connection = REMOTE_make_string(buffer);
+	SNPRINTF(buffer, FB_NELEM(buffer), "tcp (%s)", port_host->str_data);
+	port_version = REMOTE_make_string(buffer);
+
+	port_accept = accept_connection;
+	port_disconnect = ::disconnect;
+	port_force_close = ::force_close;
+	port_receive_packet = ::receive;
+	port_select_multi = ::select_multi;
+	port_send_packet = send_full;
+	port_send_partial = ::send_partial;
+	port_connect = aux_connect;
+	port_abort_aux_connection = ::abort_aux_connection;
+	port_request = aux_request;
+	port_buff_size = (USHORT) INET_remote_buffer;
+	port_async_receive = inet_async_receive;
+	port_flags |= flags;
+
+	xdrinet_create(&port_send, this,
+		&port_buffer[REM_SEND_OFFSET(INET_remote_buffer)],
+		(USHORT) INET_remote_buffer, XDR_ENCODE);
+
+	xdrinet_create(&port_receive, this,
+		&port_buffer[REM_RECV_OFFSET(INET_remote_buffer)], 0, XDR_DECODE);
+
+	if (parent && !(parent->port_server_flags & SRVR_thread_per_port))
+	{
+		MutexLockGuard guard(port_mutex, FB_FUNCTION);
+		linkParent(parent);
+	}
+}
+
+static InetRemPort* alloc_port(RemPort* const parent, const USHORT flags)
 {
 /**************************************
  *
@@ -1292,80 +1373,7 @@ static RemPort* alloc_port(RemPort* const parent, const USHORT flags)
  *	and initialize input and output XDR streams.
  *
  **************************************/
-
-	if (!INET_initialized)
-	{
-		MutexLockGuard guard(init_mutex, FB_FUNCTION);
-		if (!INET_initialized)
-		{
-#ifdef WIN_NT
-			static WSADATA wsadata;
-			const WORD version = MAKEWORD(2, 0);
-			const int wsaError = WSAStartup(version, &wsadata);
-			if (wsaError)
-			{
-				inet_error(false, parent, "WSAStartup", isc_net_init_error, wsaError);
-			}
-			fb_shutdown_callback(0, wsaExitHandler, fb_shut_finish, 0);
-#endif
-			INET_remote_buffer = Config::getTcpRemoteBufferSize();
-			if (INET_remote_buffer < MAX_DATA_LW || INET_remote_buffer > MAX_DATA_HW)
-			{
-				INET_remote_buffer = DEF_MAX_DATA;
-			}
-#ifdef DEBUG
-			gds__log(" Info: Remote Buffer Size set to %ld", INET_remote_buffer);
-#endif
-
-			fb_shutdown_callback(0, cleanup_ports, fb_shut_postproviders, 0);
-
-			INET_initialized = true;
-
-			// This should go AFTER 'INET_initialized = true' to avoid recursion
-			inet_async_receive = alloc_port(0);
-			inet_async_receive->port_flags |= PORT_server;
-		}
-	}
-
-	RemPort* const port = FB_NEW RemPort(RemPort::INET, INET_remote_buffer * 2);
-	REMOTE_get_timeout_params(port, 0);
-
-	TEXT buffer[BUFFER_SMALL];
-	gethostname(buffer, sizeof(buffer));
-
-	port->port_host = REMOTE_make_string(buffer);
-	port->port_connection = REMOTE_make_string(buffer);
-	SNPRINTF(buffer, FB_NELEM(buffer), "tcp (%s)", port->port_host->str_data);
-	port->port_version = REMOTE_make_string(buffer);
-
-	port->port_accept = accept_connection;
-	port->port_disconnect = disconnect;
-	port->port_force_close = force_close;
-	port->port_receive_packet = receive;
-	port->port_select_multi = select_multi;
-	port->port_send_packet = send_full;
-	port->port_send_partial = send_partial;
-	port->port_connect = aux_connect;
-	port->port_abort_aux_connection = abort_aux_connection;
-	port->port_request = aux_request;
-	port->port_buff_size = (USHORT) INET_remote_buffer;
-	port->port_async_receive = inet_async_receive;
-	port->port_flags |= flags;
-
-	xdrinet_create(&port->port_send, port,
-		&port->port_buffer[REM_SEND_OFFSET(INET_remote_buffer)],
-		(USHORT) INET_remote_buffer, XDR_ENCODE);
-
-	xdrinet_create(&port->port_receive, port,
-		&port->port_buffer[REM_RECV_OFFSET(INET_remote_buffer)], 0, XDR_DECODE);
-
-	if (parent && !(parent->port_server_flags & SRVR_thread_per_port))
-	{
-		MutexLockGuard guard(port_mutex, FB_FUNCTION);
-		port->linkParent(parent);
-	}
-
-	return port;
+	return FB_NEW InetRemPort(parent, flags);
 }
 
 static void abort_aux_connection(RemPort* port)
@@ -1449,7 +1457,7 @@ static RemPort* aux_connect(RemPort* port, PACKET* packet)
 		return port;
 	}
 
-	RemPort* const new_port = alloc_port(port->port_parent,
+	InetRemPort* const new_port = alloc_port(port->port_parent,
 		(port->port_flags & PORT_no_oob) | PORT_async);
 	port->port_async = new_port;
 	new_port->port_dummy_packet_interval = port->port_dummy_packet_interval;
@@ -1572,7 +1580,7 @@ static RemPort* aux_request( RemPort* port, PACKET* packet)
 
 	setFastLoopbackOption(n);
 
-	RemPort* const new_port = alloc_port(port->port_parent,
+	InetRemPort* const new_port = alloc_port(port->port_parent,
 		(port->port_flags & PORT_no_oob) | PORT_async | PORT_connecting);
 	port->port_async = new_port;
 	new_port->port_dummy_packet_interval = port->port_dummy_packet_interval;
@@ -2035,7 +2043,7 @@ static RemPort* select_accept( RemPort* main_port)
  *
  **************************************/
 
-	RemPort* const port = alloc_port(main_port);
+	InetRemPort* const port = alloc_port(main_port);
 	inet_ports->registerPort(port);
 
 	port->port_handle = os_utils::accept(main_port->port_handle, NULL, NULL);

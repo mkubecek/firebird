@@ -42,4 +42,16 @@ RemPort*	INET_reconnect(SOCKET);
 RemPort*	INET_server(SOCKET);
 void		setStopMainThread(FPTR_INT func);
 
+class InetInitializer
+{
+protected:
+	InetInitializer();
+};
+
+class InetRemPort : protected InetInitializer, public RemPort
+{
+public:
+	InetRemPort(RemPort* const parent, const USHORT flags);
+};
+
 #endif // REMOTE_INET_PROTO_H
