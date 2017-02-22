@@ -52,6 +52,8 @@ class InetRemPort : protected InetInitializer, public RemPort
 {
 public:
 	InetRemPort(RemPort* const parent, const USHORT flags);
+
+	virtual bool		accept(const p_cnct* cnct);
 };
 
 #endif // REMOTE_INET_PROTO_H

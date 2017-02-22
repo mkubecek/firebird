@@ -43,6 +43,8 @@ class XnetRemPort : public RemPort
 public:
 	XnetRemPort(RemPort* parent, UCHAR* send_buffer, ULONG send_length,
 				UCHAR* receive_buffer, ULONG receive_length);
+
+	virtual bool		accept(const p_cnct* cnct);
 };
 #endif // NO_PORT
 

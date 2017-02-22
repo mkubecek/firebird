@@ -53,7 +53,6 @@
 using namespace Firebird;
 using namespace Remote;
 
-static bool accept_connection(RemPort*, const P_CNCT*);
 static XnetRemPort* alloc_port(RemPort*, UCHAR*, ULONG, UCHAR*, ULONG);
 static RemPort* aux_connect(RemPort*, PACKET*);
 static RemPort* aux_request(RemPort*, PACKET*);
@@ -622,11 +621,11 @@ void XnetEndPoint::connect_fini()
 }
 
 
-static bool accept_connection(RemPort* port, const P_CNCT* cnct)
+bool XnetRemPort::accept(const p_cnct* cnct)
 {
 /**************************************
  *
- *	a c c e p t _ c o n n e c t i o n
+ *	a c c e p t
  *
  **************************************
  *
@@ -661,9 +660,9 @@ static bool accept_connection(RemPort* port, const P_CNCT* cnct)
 		}
 	}
 
-	port->port_login = port->port_user_name = user_name;
-	port->port_peer_name = host_name;
-	port->port_protocol_id = "XNET";
+	port_login = port_user_name = user_name;
+	port_peer_name = host_name;
+	port_protocol_id = "XNET";
 
 	return true;
 }
@@ -683,7 +682,6 @@ XnetRemPort::XnetRemPort(RemPort* parent,
 	fb_utils::snprintf(buffer, sizeof(buffer), "XNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_accept = accept_connection;
 	port_disconnect = disconnect;
 	port_force_close = force_close;
 	port_receive_packet = receive;

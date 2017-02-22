@@ -407,7 +407,6 @@ private:
 #endif
 };
 
-static bool		accept_connection(RemPort*, const P_CNCT*);
 #ifdef HAVE_SETITIMER
 static void		alarm_handler(int);
 #endif
@@ -1205,11 +1204,11 @@ RemPort* INET_server(SOCKET sock)
 	return port;
 }
 
-static bool accept_connection(RemPort* port, const P_CNCT* cnct)
+bool InetRemPort::accept(const p_cnct* cnct)
 {
 /**************************************
  *
- *	a c c e p t _ c o n n e c t i o n
+ *	a c c e p t
  *
  **************************************
  *
@@ -1270,10 +1269,10 @@ static bool accept_connection(RemPort* port, const P_CNCT* cnct)
 #endif // !WIN_NT
 
 	// store user identity
-	port->port_login = port->port_user_name = user_name;
-	port->port_peer_name = host_name;
+	port_login = port_user_name = user_name;
+	port_peer_name = host_name;
 
-	get_peer_info(port);
+	get_peer_info(this);
 
 	return true;
 }
@@ -1332,7 +1331,6 @@ InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
 	SNPRINTF(buffer, FB_NELEM(buffer), "tcp (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_accept = accept_connection;
 	port_disconnect = ::disconnect;
 	port_force_close = ::force_close;
 	port_receive_packet = ::receive;

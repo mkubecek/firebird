@@ -42,6 +42,8 @@ class WnetRemPort : protected WnetInitializer, public RemPort
 {
 public:
 	WnetRemPort(RemPort* parent);
+
+	virtual bool		accept(const p_cnct* cnct);
 };
 
 #endif // REMOTE_WNET_PROTO_H

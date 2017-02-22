@@ -648,11 +648,6 @@ void RemPort::unlinkParent()
 	this->port_parent = NULL;
 }
 
-bool RemPort::accept(p_cnct* cnct)
-{
-	return (*this->port_accept)(this, cnct);
-}
-
 void RemPort::disconnect()
 {
 	(*this->port_disconnect)(this);

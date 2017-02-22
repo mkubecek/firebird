@@ -891,7 +891,6 @@ public:
 	Firebird::RefPtr<Firebird::RefMutex> port_write_sync;
 
 	// port function pointers (C "emulation" of virtual functions)
-	bool			(*port_accept)(RemPort*, const p_cnct*);
 	void			(*port_disconnect)(RemPort*);
 	void			(*port_force_close)(RemPort*);
 	RemPort*		(*port_receive_packet)(RemPort*, PACKET*);
@@ -991,7 +990,7 @@ public:
 		port_sync(FB_NEW_POOL(getPool()) Firebird::RefMutex()),
 		port_que_sync(FB_NEW_POOL(getPool()) Firebird::RefMutex()),
 		port_write_sync(FB_NEW_POOL(getPool()) Firebird::RefMutex()),
-		port_accept(0), port_disconnect(0), port_force_close(0), port_receive_packet(0), port_send_packet(0),
+		port_disconnect(0), port_force_close(0), port_receive_packet(0), port_send_packet(0),
 		port_send_partial(0), port_connect(0), port_request(0), port_select_multi(0),
 		port_type(t), port_state(PENDING), port_clients(0), port_next(0),
 		port_parent(0), port_async(0), port_async_receive(0),
@@ -1111,7 +1110,7 @@ public:
 public:
 	// TMN: Beginning of C++ port
 	// TMN: ugly, but at least a start
-	bool		accept(p_cnct* cnct);
+	virtual bool		accept(const p_cnct* cnct) = 0;
 	void		disconnect();
 	void		force_close();
 	RemPort*	receive(PACKET* pckt);
