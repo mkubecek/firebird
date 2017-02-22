@@ -648,11 +648,6 @@ void RemPort::unlinkParent()
 	this->port_parent = NULL;
 }
 
-void RemPort::force_close()
-{
-	(*this->port_force_close)(this);
-}
-
 RemPort* RemPort::receive(PACKET* pckt)
 {
 	return (*this->port_receive_packet)(this, pckt);

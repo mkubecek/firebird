@@ -55,6 +55,7 @@ public:
 
 	virtual bool		accept(const p_cnct* cnct);
 	virtual void		disconnect();
+	virtual void		force_close();
 };
 
 #endif // REMOTE_INET_PROTO_H

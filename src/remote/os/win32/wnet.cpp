@@ -69,7 +69,6 @@ static bool		connect_client(RemPort*);
 #ifdef NOT_USED_OR_REPLACED
 static void		exit_handler(void*);
 #endif
-static void		force_close(RemPort*);
 static rem_str*		make_pipe_name(const RefPtr<const Config>&, const TEXT*, const TEXT*, const TEXT*);
 static RemPort*	receive(RemPort*, PACKET*);
 static int		send_full(RemPort*, PACKET*);
@@ -517,7 +516,6 @@ static WnetRemPort::WnetRemPort(RemPort* parent)
 	sprintf(buffer, "WNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_force_close = force_close;
 	port_receive_packet = receive;
 	port_send_packet = send_full;
 	port_send_partial = send_partial;
@@ -767,7 +765,7 @@ void WnetRemPort::disconnect()
 }
 
 
-static void force_close(RemPort* port)
+void WnetRemPort::force_close()
 {
 /**************************************
  *
@@ -780,13 +778,13 @@ static void force_close(RemPort* port)
  *
  **************************************/
 
-	if (port->port_event != INVALID_HANDLE_VALUE)
+	if (port_event != INVALID_HANDLE_VALUE)
 	{
-		port->port_state = RemPort::BROKEN;
+		port_state = RemPort::BROKEN;
 
-		const HANDLE handle = port->port_pipe;
-		port->port_pipe = INVALID_HANDLE_VALUE;
-		SetEvent(port->port_event);
+		const HANDLE handle = port_pipe;
+		port_pipe = INVALID_HANDLE_VALUE;
+		SetEvent(port_event);
 		CloseHandle(handle);
 	}
 }

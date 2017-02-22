@@ -422,7 +422,6 @@ static GlobalPtr<Mutex> waitThreadMutex;
 static unsigned int procCount = 0;
 #endif // WIN_NT
 
-static void		force_close(RemPort*);
 static int		cleanup_ports(const int, const int, void*);
 
 #ifdef NO_FORK
@@ -1330,7 +1329,6 @@ InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
 	SNPRINTF(buffer, FB_NELEM(buffer), "tcp (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_force_close = ::force_close;
 	port_receive_packet = ::receive;
 	port_select_multi = ::select_multi;
 	port_send_packet = send_full;
@@ -1714,7 +1712,7 @@ void InetRemPort::disconnect()
 }
 
 
-static void force_close(RemPort* port)
+void InetRemPort::force_close()
 {
 /**************************************
  *
@@ -1727,18 +1725,18 @@ static void force_close(RemPort* port)
  *
  **************************************/
 
-	if (port->port_async)
-		abort_aux_connection(port->port_async);
+	if (port_async)
+		::abort_aux_connection(port_async);
 
-	if (port->port_state != RemPort::PENDING)
+	if (port_state != RemPort::PENDING)
 		return;
 
-	port->port_state = RemPort::BROKEN;
+	port_state = RemPort::BROKEN;
 
-	if (port->port_handle != INVALID_SOCKET)
+	if (port_handle != INVALID_SOCKET)
 	{
-		shutdown(port->port_handle, 2);
-		SOCLOSE(port->port_handle);
+		shutdown(port_handle, 2);
+		SOCLOSE(port_handle);
 	}
 }
 

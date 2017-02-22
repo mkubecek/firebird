@@ -59,7 +59,6 @@ static RemPort* aux_request(RemPort*, PACKET*);
 
 static void cleanup_comm(XCC);
 static void cleanup_port(RemPort*);
-static void force_close(RemPort*);
 static int cleanup_ports(const int, const int, void* arg);
 
 static RemPort* receive(RemPort*, PACKET*);
@@ -681,7 +680,6 @@ XnetRemPort::XnetRemPort(RemPort* parent,
 	fb_utils::snprintf(buffer, sizeof(buffer), "XNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_force_close = force_close;
 	port_receive_packet = receive;
 	port_send_packet = send_full;
 	port_send_partial = send_partial;
@@ -1500,7 +1498,7 @@ void XnetRemPort::disconnect()
 }
 
 
-static void force_close(RemPort* port)
+void XnetRemPort::force_close()
 {
 /**************************************
  *
@@ -1512,12 +1510,12 @@ static void force_close(RemPort* port)
  *	Forcibly close remote connection.
  *
  **************************************/
-	if (port->port_state != RemPort::PENDING || !port->port_xcc)
+	if (port_state != RemPort::PENDING || !port_xcc)
 		return;
 
-	port->port_state = RemPort::BROKEN;
+	port_state = RemPort::BROKEN;
 
-	XCC xcc = port->port_xcc;
+	XCC xcc = port_xcc;
 
 	if (!xcc)
 		return;

@@ -45,6 +45,7 @@ public:
 
 	virtual bool		accept(const p_cnct* cnct);
 	virtual void		disconnect();
+	virtual void		force_close();
 };
 
 #endif // REMOTE_WNET_PROTO_H
