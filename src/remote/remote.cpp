@@ -657,10 +657,7 @@ bool RemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPor
 
 void RemPort::abort_aux_connection()
 {
-	if (this->port_abort_aux_connection)
-	{
-		(*this->port_abort_aux_connection)(this);
-	}
+	// no-op unless redefined in a subclass
 }
 
 void RemPort::auxAcceptError(PACKET* packet)

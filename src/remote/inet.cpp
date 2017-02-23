@@ -411,7 +411,6 @@ private:
 static void		alarm_handler(int);
 #endif
 static InetRemPort*	alloc_port(RemPort*, const USHORT = 0);
-static void				abort_aux_connection(RemPort*);
 
 #if !defined(WIN_NT)
 static THREAD_ENTRY_DECLARE waitThread(THREAD_ENTRY_PARAM);
@@ -1323,7 +1322,6 @@ InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
 	SNPRINTF(buffer, FB_NELEM(buffer), "tcp (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_abort_aux_connection = ::abort_aux_connection;
 	port_buff_size = (USHORT) INET_remote_buffer;
 	port_async_receive = inet_async_receive;
 	port_flags |= flags;
@@ -1358,12 +1356,12 @@ static InetRemPort* alloc_port(RemPort* const parent, const USHORT flags)
 	return FB_NEW InetRemPort(parent, flags);
 }
 
-static void abort_aux_connection(RemPort* port)
+void InetRemPort::abort_aux_connection()
 {
-	if (port->port_flags & PORT_connecting)
+	if (port_flags & PORT_connecting)
 	{
-		shutdown(port->port_channel, 2);
-		SOCLOSE(port->port_channel);
+		shutdown(port_channel, 2);
+		SOCLOSE(port_channel);
 	}
 }
 
@@ -1714,7 +1712,7 @@ void InetRemPort::force_close()
  **************************************/
 
 	if (port_async)
-		::abort_aux_connection(port_async);
+		port_async->abort_aux_connection();
 
 	if (port_state != RemPort::PENDING)
 		return;

@@ -890,9 +890,6 @@ public:
 	Firebird::RefPtr<Firebird::RefMutex> port_que_sync;
 	Firebird::RefPtr<Firebird::RefMutex> port_write_sync;
 
-	// port function pointers (C "emulation" of virtual functions)
-	void			(*port_abort_aux_connection)(RemPort*);	// stop waiting for secondary connection
-
 	enum RemPort_t {
 		INET,			// Internet (TCP/IP)
 		PIPE,			// Windows NT named pipe connection
@@ -1109,7 +1106,7 @@ public:
 	virtual RemPort*	aux_connect(PACKET* packet) = 0;
 	virtual RemPort*	aux_request(PACKET* packet) = 0;
 	virtual bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
-	void		abort_aux_connection();
+	virtual void		abort_aux_connection();
 
 	bool haveRecvData()
 	{

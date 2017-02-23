@@ -62,6 +62,7 @@ public:
 	virtual RemPort*	aux_connect(PACKET* packet);
 	virtual RemPort*	aux_request(PACKET* packet);
 	virtual bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
+	virtual void		abort_aux_connection();
 };
 
 #endif // REMOTE_INET_PROTO_H
