@@ -54,7 +54,6 @@ using namespace Firebird;
 using namespace Remote;
 
 static XnetRemPort* alloc_port(RemPort*, UCHAR*, ULONG, UCHAR*, ULONG);
-static RemPort* aux_connect(RemPort*, PACKET*);
 static RemPort* aux_request(RemPort*, PACKET*);
 
 static void cleanup_comm(XCC);
@@ -676,7 +675,6 @@ XnetRemPort::XnetRemPort(RemPort* parent,
 	fb_utils::snprintf(buffer, sizeof(buffer), "XNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_connect = aux_connect;
 	port_request = aux_request;
 	port_buff_size = send_length;
 
@@ -715,7 +713,7 @@ static XnetRemPort* alloc_port(RemPort* parent,
 }
 
 
-static RemPort* aux_connect(RemPort* port, PACKET* /*packet*/)
+RemPort* XnetRemPort::aux_connect(PACKET* /*packet*/)
 {
 /**************************************
  *
@@ -732,10 +730,10 @@ static RemPort* aux_connect(RemPort* port, PACKET* /*packet*/)
  *
  **************************************/
 
-	if (port->port_server_flags)
+	if (port_server_flags)
 	{
-		port->port_flags |= PORT_async;
-		return port;
+		port_flags |= PORT_async;
+		return this;
 	}
 
 	XCC parent_xcc = NULL;
@@ -747,7 +745,7 @@ static RemPort* aux_connect(RemPort* port, PACKET* /*packet*/)
 	try {
 
 		// make a new xcc
-		parent_xcc = port->port_xcc;
+		parent_xcc = port_xcc;
 		xps = (XPS) parent_xcc->xcc_mapped_addr;
 
 		xcc = FB_NEW struct xcc(parent_xcc->xcc_endpoint);
@@ -812,8 +810,8 @@ static RemPort* aux_connect(RemPort* port, PACKET* /*packet*/)
 												 channel_c2s_client_ptr, xcc->xcc_send_channel->xch_size,
 												 channel_s2c_client_ptr, xcc->xcc_recv_channel->xch_size);
 
-		port->port_async = new_port;
-		new_port->port_flags = port->port_flags & PORT_no_oob;
+		port_async = new_port;
+		new_port->port_flags = port_flags & PORT_no_oob;
 		new_port->port_flags |= PORT_async;
 		new_port->port_xcc = xcc;
 

@@ -411,7 +411,6 @@ private:
 static void		alarm_handler(int);
 #endif
 static InetRemPort*	alloc_port(RemPort*, const USHORT = 0);
-static RemPort*		aux_connect(RemPort*, PACKET*);
 static void				abort_aux_connection(RemPort*);
 static RemPort*		aux_request(RemPort*, PACKET*);
 
@@ -1327,7 +1326,6 @@ InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
 	port_version = REMOTE_make_string(buffer);
 
 	port_select_multi = ::select_multi;
-	port_connect = aux_connect;
 	port_abort_aux_connection = ::abort_aux_connection;
 	port_request = aux_request;
 	port_buff_size = (USHORT) INET_remote_buffer;
@@ -1373,7 +1371,7 @@ static void abort_aux_connection(RemPort* port)
 	}
 }
 
-static RemPort* aux_connect(RemPort* port, PACKET* packet)
+RemPort* InetRemPort::aux_connect(PACKET* packet)
 {
 /**************************************
  *
@@ -1387,16 +1385,16 @@ static RemPort* aux_connect(RemPort* port, PACKET* packet)
  *
  **************************************/
 
-	// If this is a server, we're got an auxiliary connection.  Accept it
+	// If this is a server, we've got an auxiliary connection.  Accept it
 
-	if (port->port_server_flags)
+	if (port_server_flags)
 	{
 		struct timeval timeout;
-		timeout.tv_sec = port->port_connect_timeout;
+		timeout.tv_sec = port_connect_timeout;
 		timeout.tv_usec = 0;
 
 		Select slct;
-		slct.set(port->port_channel);
+		slct.set(port_channel);
 
 		int inetErrNo = 0;
 
@@ -1417,38 +1415,38 @@ static RemPort* aux_connect(RemPort* port, PACKET* packet)
 					const ISC_STATUS error_code =
 						(count == 0) ? isc_net_event_connect_timeout : isc_net_event_connect_err;
 					int savedError = inetErrNo;
-					SOCLOSE(port->port_channel);
-					inet_error(false, port, "select", error_code, savedError);
+					SOCLOSE(port_channel);
+					inet_error(false, this, "select", error_code, savedError);
 				}
 			}
 		}
 
-		if (port->port_channel == INVALID_SOCKET)
+		if (port_channel == INVALID_SOCKET)
 			return NULL;
 
-		const SOCKET n = os_utils::accept(port->port_channel, NULL, NULL);
+		const SOCKET n = os_utils::accept(port_channel, NULL, NULL);
 		inetErrNo = INET_ERRNO;
 
 		if (n == INVALID_SOCKET)
 		{
 			int savedError = inetErrNo;
-			SOCLOSE(port->port_channel);
-			inet_error(false, port, "accept", isc_net_event_connect_err, savedError);
+			SOCLOSE(port_channel);
+			inet_error(false, this, "accept", isc_net_event_connect_err, savedError);
 		}
 
-		SOCLOSE(port->port_channel);
-		port->port_handle = n;
-		port->port_flags |= PORT_async;
+		SOCLOSE(port_channel);
+		port_handle = n;
+		port_flags |= PORT_async;
 
-		get_peer_info(port);
+		get_peer_info(this);
 
-		return port;
+		return this;
 	}
 
-	InetRemPort* const new_port = alloc_port(port->port_parent,
-		(port->port_flags & PORT_no_oob) | PORT_async);
-	port->port_async = new_port;
-	new_port->port_dummy_packet_interval = port->port_dummy_packet_interval;
+	InetRemPort* const new_port = alloc_port(port_parent,
+		(port_flags & PORT_no_oob) | PORT_async);
+	port_async = new_port;
+	new_port->port_dummy_packet_interval = port_dummy_packet_interval;
 	new_port->port_dummy_timeout = new_port->port_dummy_packet_interval;
 	P_RESP* response = &packet->p_resp;
 
@@ -1462,12 +1460,12 @@ static RemPort* aux_connect(RemPort* port, PACKET* packet)
 	// should be configured to be a fixed port number in the server configuration.
 
 	SockAddr address;
-	int status = address.getpeername(port->port_handle);
+	int status = address.getpeername(port_handle);
 	if (status != 0)
 	{
 		int savedError = INET_ERRNO;
-		port->auxAcceptError(packet);
-		inet_error(false, port, "socket", isc_net_event_connect_err, savedError);
+		auxAcceptError(packet);
+		inet_error(false, this, "socket", isc_net_event_connect_err, savedError);
 	}
 	SockAddr resp_address(response->p_resp_data.cstr_address, response->p_resp_data.cstr_length);
 	address.setPort(resp_address.port());
@@ -1478,8 +1476,8 @@ static RemPort* aux_connect(RemPort* port, PACKET* packet)
 	if (n == INVALID_SOCKET)
 	{
 		int savedError = INET_ERRNO;
-		port->auxAcceptError(packet);
-		inet_error(false, port, "socket", isc_net_event_connect_err, savedError);
+		auxAcceptError(packet);
+		inet_error(false, this, "socket", isc_net_event_connect_err, savedError);
 	}
 
 	int optval = 1;
@@ -1491,13 +1489,13 @@ static RemPort* aux_connect(RemPort* port, PACKET* packet)
 	{
 		int savedError = INET_ERRNO;
 		SOCLOSE(n);
-		port->auxAcceptError(packet);
-		inet_error(false, port, "connect", isc_net_event_connect_err, savedError);
+		auxAcceptError(packet);
+		inet_error(false, this, "connect", isc_net_event_connect_err, savedError);
 	}
 
 	new_port->port_handle = n;
 
-	new_port->port_peer_name = port->port_peer_name;
+	new_port->port_peer_name = port_peer_name;
 	get_peer_info(new_port);
 
 	return new_port;

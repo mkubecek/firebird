@@ -4108,7 +4108,7 @@ Firebird::IEvents* Attachment::queEvents(CheckStatusWrapper* status, Firebird::I
 			request->p_req_type = P_REQ_async;
 			send_packet(port, packet);
 			receive_response(status, rdb, packet);
-			port->connect(packet);
+			port->aux_connect(packet);
 
 			Thread::start(event_thread, port->port_async, THREAD_high,
 						  &port->port_async->port_events_thread);

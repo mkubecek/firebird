@@ -2430,7 +2430,7 @@ static void aux_request( RemPort* port, /*P_REQ* request,*/ PACKET* send)
 			bool connected = false;
 			try
 			{
-				connected = aux_port->connect(send) != NULL;
+				connected = aux_port->aux_connect(send) != NULL;
 				if (connected)
 				{
 					aux_port->port_context = rdb;

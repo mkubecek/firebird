@@ -661,11 +661,6 @@ void RemPort::abort_aux_connection()
 	}
 }
 
-RemPort* RemPort::connect(PACKET* pckt)
-{
-	return (*this->port_connect)(this, pckt);
-}
-
 RemPort* RemPort::request(PACKET* pckt)
 {
 	return (*this->port_request)(this, pckt);

@@ -63,7 +63,6 @@ static volatile bool wnet_initialized = false;
 static volatile bool wnet_shutdown = false;
 
 static WnetRemPort*	alloc_port(RemPort*);
-static RemPort*		aux_connect(RemPort*, PACKET*);
 static RemPort*		aux_request(RemPort*, PACKET*);
 static bool		connect_client(RemPort*);
 #ifdef NOT_USED_OR_REPLACED
@@ -513,7 +512,6 @@ static WnetRemPort::WnetRemPort(RemPort* parent)
 	sprintf(buffer, "WNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_connect = aux_connect;
 	port_request = aux_request;
 	port_buff_size = BUFFER_SIZE;
 
@@ -549,7 +547,7 @@ static WnetRemPort* alloc_port(RemPort* parent)
 	return FB_NEW WnetRemPort(parent);
 }
 
-static RemPort* aux_connect( RemPort* port, PACKET* packet)
+RemPort* WnetRemPort::aux_connect(PACKET* packet)
 {
 /**************************************
  *
@@ -564,13 +562,13 @@ static RemPort* aux_connect( RemPort* port, PACKET* packet)
  **************************************/
 	// If this is a server, we're got an auxiliary connection.  Accept it
 
-	if (port->port_server_flags)
+	if (port_server_flags)
 	{
-		if (!connect_client(port))
+		if (!connect_client(this))
 			return NULL;
 
-		port->port_flags |= PORT_async;
-		return port;
+		port_flags |= PORT_async;
+		return this;
 	}
 
 	// The server will be sending its process id in the packet to
@@ -589,12 +587,12 @@ static RemPort* aux_connect( RemPort* port, PACKET* packet)
 		p = str_pid;
 	}
 
-	WnetRemPort* const new_port = alloc_port(port->port_parent);
-	port->port_async = new_port;
-	new_port->port_flags = port->port_flags & PORT_no_oob;
+	WnetRemPort* const new_port = alloc_port(port_parent);
+	port_async = new_port;
+	new_port->port_flags = port_flags & PORT_no_oob;
 	new_port->port_flags |= PORT_async;
-	new_port->port_connection = make_pipe_name(port->getPortConfig(),
-		port->port_connection->str_data, EVENT_PIPE_SUFFIX, p);
+	new_port->port_connection = make_pipe_name(getPortConfig(),
+		port_connection->str_data, EVENT_PIPE_SUFFIX, p);
 
 	while (true)
 	{
