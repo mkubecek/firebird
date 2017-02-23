@@ -412,7 +412,6 @@ static void		alarm_handler(int);
 #endif
 static InetRemPort*	alloc_port(RemPort*, const USHORT = 0);
 static void				abort_aux_connection(RemPort*);
-static RemPort*		aux_request(RemPort*, PACKET*);
 
 #if !defined(WIN_NT)
 static THREAD_ENTRY_DECLARE waitThread(THREAD_ENTRY_PARAM);
@@ -1327,7 +1326,6 @@ InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
 
 	port_select_multi = ::select_multi;
 	port_abort_aux_connection = ::abort_aux_connection;
-	port_request = aux_request;
 	port_buff_size = (USHORT) INET_remote_buffer;
 	port_async_receive = inet_async_receive;
 	port_flags |= flags;
@@ -1501,7 +1499,7 @@ RemPort* InetRemPort::aux_connect(PACKET* packet)
 	return new_port;
 }
 
-static RemPort* aux_request( RemPort* port, PACKET* packet)
+RemPort* InetRemPort::aux_request(PACKET* packet)
 {
 /**************************************
  *
@@ -1517,18 +1515,18 @@ static RemPort* aux_request( RemPort* port, PACKET* packet)
 
 	// listen on (local) address of the original socket
 	SockAddr our_address;
-	if (our_address.getsockname(port->port_handle) < 0)
+	if (our_address.getsockname(port_handle) < 0)
 	{
 		gds__log("INET/aux_request: failed to get local address of the original socket");
-		inet_error(false, port, "getsockname", isc_net_event_listen_err, INET_ERRNO);
+		inet_error(false, this, "getsockname", isc_net_event_listen_err, INET_ERRNO);
 	}
-	unsigned short aux_port = port->getPortConfig()->getRemoteAuxPort();
+	unsigned short aux_port = getPortConfig()->getRemoteAuxPort();
 	our_address.setPort(aux_port); // may be 0
 
 	SOCKET n = os_utils::socket(our_address.family(), SOCK_STREAM, 0);
 	if (n == INVALID_SOCKET)
 	{
-		inet_error(false, port, "socket", isc_net_event_listen_err, INET_ERRNO);
+		inet_error(false, this, "socket", isc_net_event_listen_err, INET_ERRNO);
 	}
 
 	int optval;
@@ -1541,53 +1539,53 @@ static RemPort* aux_request( RemPort* port, PACKET* packet)
 	optval = TRUE;
 	if (setsockopt(n, SOL_SOCKET, SO_REUSEADDR, (SCHAR*) &optval, sizeof(optval)) < 0)
 	{
-		inet_error(false, port, "setsockopt REUSE", isc_net_event_listen_err, INET_ERRNO);
+		inet_error(false, this, "setsockopt REUSE", isc_net_event_listen_err, INET_ERRNO);
 	}
 #endif
 
-	optval = port->getPortConfig()->getIPv6V6Only() ? 1 : 0;
+	optval = getPortConfig()->getIPv6V6Only() ? 1 : 0;
 	// ignore failure, we already have it logged from the main listening port
 	setsockopt(n, IPPROTO_IPV6, IPV6_V6ONLY, (SCHAR*) &optval, sizeof(optval));
 
 	if (bind(n, our_address.ptr(), our_address.length()) < 0)
 	{
-		inet_error(false, port, "bind", isc_net_event_listen_err, INET_ERRNO);
+		inet_error(false, this, "bind", isc_net_event_listen_err, INET_ERRNO);
 	}
 
 	if (our_address.getsockname(n) < 0)
 	{
-		inet_error(false, port, "getsockname", isc_net_event_listen_err, INET_ERRNO);
+		inet_error(false, this, "getsockname", isc_net_event_listen_err, INET_ERRNO);
 	}
 
 	if (listen(n, 1) < 0)
 	{
-		inet_error(false, port, "listen", isc_net_event_listen_err, INET_ERRNO);
+		inet_error(false, this, "listen", isc_net_event_listen_err, INET_ERRNO);
 	}
 
 	setFastLoopbackOption(n);
 
-	InetRemPort* const new_port = alloc_port(port->port_parent,
-		(port->port_flags & PORT_no_oob) | PORT_async | PORT_connecting);
-	port->port_async = new_port;
-	new_port->port_dummy_packet_interval = port->port_dummy_packet_interval;
+	InetRemPort* const new_port = alloc_port(port_parent,
+		(port_flags & PORT_no_oob) | PORT_async | PORT_connecting);
+	port_async = new_port;
+	new_port->port_dummy_packet_interval = port_dummy_packet_interval;
 	new_port->port_dummy_timeout = new_port->port_dummy_packet_interval;
 
-	new_port->port_server_flags = port->port_server_flags;
+	new_port->port_server_flags = port_server_flags;
 	new_port->port_channel = (int) n;
 
 	P_RESP* response = &packet->p_resp;
 
 	SockAddr port_address;
-	if (port_address.getsockname(port->port_handle) < 0)
+	if (port_address.getsockname(port_handle) < 0)
 	{
-		inet_error(false, port, "getsockname", isc_net_event_listen_err, INET_ERRNO);
+		inet_error(false, this, "getsockname", isc_net_event_listen_err, INET_ERRNO);
 	}
 	port_address.setPort(our_address.port());
 
 	response->p_resp_data.cstr_length = (ULONG) port_address.length();
 	memcpy(response->p_resp_data.cstr_address, port_address.ptr(), port_address.length());
 
-	new_port->port_peer_name = port->port_peer_name;
+	new_port->port_peer_name = port_peer_name;
 	return new_port;
 }
 

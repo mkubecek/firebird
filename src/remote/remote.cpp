@@ -661,11 +661,6 @@ void RemPort::abort_aux_connection()
 	}
 }
 
-RemPort* RemPort::request(PACKET* pckt)
-{
-	return (*this->port_request)(this, pckt);
-}
-
 void RemPort::auxAcceptError(PACKET* packet)
 {
 	if (port_protocol >= PROTOCOL_VERSION13)

@@ -51,6 +51,7 @@ public:
 	virtual XDR_INT		send(PACKET* packet);
 	virtual XDR_INT		send_partial(PACKET* packet);
 	virtual RemPort*	aux_connect(PACKET* packet);
+	virtual RemPort*	aux_request(PACKET* packet);
 };
 #endif // NO_PORT
 

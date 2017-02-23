@@ -63,7 +63,6 @@ static volatile bool wnet_initialized = false;
 static volatile bool wnet_shutdown = false;
 
 static WnetRemPort*	alloc_port(RemPort*);
-static RemPort*		aux_request(RemPort*, PACKET*);
 static bool		connect_client(RemPort*);
 #ifdef NOT_USED_OR_REPLACED
 static void		exit_handler(void*);
@@ -512,7 +511,6 @@ static WnetRemPort::WnetRemPort(RemPort* parent)
 	sprintf(buffer, "WNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_request = aux_request;
 	port_buff_size = BUFFER_SIZE;
 
 	port_event = CreateEvent(NULL, TRUE, TRUE, NULL);
@@ -614,7 +612,7 @@ RemPort* WnetRemPort::aux_connect(PACKET* packet)
 }
 
 
-static RemPort* aux_request( RemPort* vport, PACKET* packet)
+RemPort* WnetRemPort::aux_request(PACKET* packet)
 {
 /**************************************
  *
@@ -631,17 +629,17 @@ static RemPort* aux_request( RemPort* vport, PACKET* packet)
  *
  **************************************/
 
-	const DWORD server_pid = (vport->port_server_flags & SRVR_multi_client) ?
+	const DWORD server_pid = (port_server_flags & SRVR_multi_client) ?
 		++event_counter : GetCurrentProcessId();
-	WnetRemPort* const new_port = alloc_port(vport->port_parent);
-	new_port->port_server_flags = vport->port_server_flags;
-	new_port->port_flags = (vport->port_flags & PORT_no_oob) | PORT_connecting;
-	vport->port_async = new_port;
+	WnetRemPort* const new_port = alloc_port(port_parent);
+	new_port->port_server_flags = port_server_flags;
+	new_port->port_flags = (port_flags & PORT_no_oob) | PORT_connecting;
+	port_async = new_port;
 
 	TEXT str_pid[32];
 	wnet_make_file_name(str_pid, server_pid);
-	new_port->port_connection = make_pipe_name(vport->getPortConfig(),
-		vport->port_connection->str_data, EVENT_PIPE_SUFFIX, str_pid);
+	new_port->port_connection = make_pipe_name(getPortConfig(),
+		port_connection->str_data, EVENT_PIPE_SUFFIX, str_pid);
 
 	new_port->port_pipe =
 		CreateNamedPipe(new_port->port_connection->str_data,

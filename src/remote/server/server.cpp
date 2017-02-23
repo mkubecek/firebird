@@ -2414,7 +2414,7 @@ static void aux_request( RemPort* port, /*P_REQ* request,*/ PACKET* send)
 			Config::getDefaultConfig()->getRemoteAuxPort() : 0;
 		GlobalPortLock auxPortLock(aux_port_id);
 
-		RemPort* const aux_port = port->request(send);
+		RemPort* const aux_port = port->aux_request(send);
 
 		port->send_response(send, rdb->rdb_id, send->p_resp.p_resp_data.cstr_length,
 							&status_vector, false);
