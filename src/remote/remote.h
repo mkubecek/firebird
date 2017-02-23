@@ -891,7 +891,6 @@ public:
 	Firebird::RefPtr<Firebird::RefMutex> port_write_sync;
 
 	// port function pointers (C "emulation" of virtual functions)
-	bool			(*port_select_multi)(RemPort*, UCHAR*, SSHORT, SSHORT*, RemPortPtr&);	// get packet from active port
 	void			(*port_abort_aux_connection)(RemPort*);	// stop waiting for secondary connection
 
 	enum RemPort_t {
@@ -983,7 +982,6 @@ public:
 		port_sync(FB_NEW_POOL(getPool()) Firebird::RefMutex()),
 		port_que_sync(FB_NEW_POOL(getPool()) Firebird::RefMutex()),
 		port_write_sync(FB_NEW_POOL(getPool()) Firebird::RefMutex()),
-		port_select_multi(0),
 		port_type(t), port_state(PENDING), port_clients(0), port_next(0),
 		port_parent(0), port_async(0), port_async_receive(0),
 		port_server(0), port_server_flags(0), port_protocol(0), port_buff_size(rpt / 2),
@@ -1110,7 +1108,7 @@ public:
 	virtual XDR_INT		send_partial(PACKET* packet) = 0;
 	virtual RemPort*	aux_connect(PACKET* packet) = 0;
 	virtual RemPort*	aux_request(PACKET* packet) = 0;
-	bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
+	virtual bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
 	void		abort_aux_connection();
 
 	bool haveRecvData()

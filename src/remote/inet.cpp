@@ -468,7 +468,6 @@ static bool		packet_send(RemPort*, const SCHAR*, SSHORT);
 static RemPort*		select_accept(RemPort*);
 
 static void		select_port(RemPort*, Select*, RemPortPtr&);
-static bool		select_multi(RemPort*, UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr&);
 static bool		select_wait(RemPort*, Select*);
 
 static int		xdrinet_create(XDR*, RemPort*, UCHAR *, USHORT, enum xdr_op);
@@ -1324,7 +1323,6 @@ InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
 	SNPRINTF(buffer, FB_NELEM(buffer), "tcp (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_select_multi = ::select_multi;
 	port_abort_aux_connection = ::abort_aux_connection;
 	port_buff_size = (USHORT) INET_remote_buffer;
 	port_async_receive = inet_async_receive;
@@ -1942,8 +1940,7 @@ RemPort* InetRemPort::receive(PACKET* packet)
 	return this;
 }
 
-static bool select_multi(RemPort* main_port, UCHAR* buffer, SSHORT bufsize, SSHORT* length,
-						 RemPortPtr& port)
+bool InetRemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port)
 {
 /**************************************
  *
@@ -1961,20 +1958,20 @@ static bool select_multi(RemPort* main_port, UCHAR* buffer, SSHORT bufsize, SSHO
 
 	for (;;)
 	{
-		select_port(main_port, &INET_select, port);
-		if (port == main_port && (port->port_server_flags & SRVR_multi_client))
+		select_port(this, &INET_select, port);
+		if (port == this && (port->port_server_flags & SRVR_multi_client))
 		{
 			if (INET_shutting_down)
 			{
-				if (main_port->port_state != RemPort::BROKEN)
+				if (port_state != RemPort::BROKEN)
 				{
-					main_port->port_state = RemPort::BROKEN;
+					port_state = RemPort::BROKEN;
 
-					shutdown(main_port->port_handle, 2);
-					SOCLOSE(main_port->port_handle);
+					shutdown(port_handle, 2);
+					SOCLOSE(port_handle);
 				}
 			}
-			else if (port = select_accept(main_port))
+			else if (port = select_accept(this))
 			{
 				if (!REMOTE_inflate(port, packet_receive, buffer, bufsize, length))
 				{
@@ -2006,7 +2003,7 @@ static bool select_multi(RemPort* main_port, UCHAR* buffer, SSHORT bufsize, SSHO
 			}
 			return (*length) ? true : false;
 		}
-		if (!select_wait(main_port, &INET_select))
+		if (!select_wait(this, &INET_select))
 		{
 			port = NULL;
 			return false;

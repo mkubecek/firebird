@@ -650,7 +650,9 @@ void RemPort::unlinkParent()
 
 bool RemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port)
 {
-	return (*this->port_select_multi)(this, buffer, bufsize, length, port);
+	fb_assert(false);	// implemented in (some) subclasses
+
+	return false;
 }
 
 void RemPort::abort_aux_connection()

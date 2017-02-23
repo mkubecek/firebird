@@ -61,6 +61,7 @@ public:
 	virtual XDR_INT		send_partial(PACKET* packet);
 	virtual RemPort*	aux_connect(PACKET* packet);
 	virtual RemPort*	aux_request(PACKET* packet);
+	virtual bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
 };
 
 #endif // REMOTE_INET_PROTO_H
