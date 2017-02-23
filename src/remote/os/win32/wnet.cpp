@@ -70,7 +70,6 @@ static bool		connect_client(RemPort*);
 static void		exit_handler(void*);
 #endif
 static rem_str*		make_pipe_name(const RefPtr<const Config>&, const TEXT*, const TEXT*, const TEXT*);
-static int		send_full(RemPort*, PACKET*);
 static int		send_partial(RemPort*, PACKET*);
 static int		xdrwnet_create(XDR*, RemPort*, UCHAR*, USHORT, xdr_op);
 static bool_t	xdrwnet_endofrecord(XDR*);//, int);
@@ -311,7 +310,7 @@ RemPort* WNET_connect(const TEXT* name, PACKET* packet, USHORT flag, Firebird::R
 			}
 			WaitNamedPipe(port->port_connection->str_data, 3000L);
 		}
-		send_full(port, packet);
+		port->send(packet);
 		return port;
 	}
 
@@ -515,7 +514,6 @@ static WnetRemPort::WnetRemPort(RemPort* parent)
 	sprintf(buffer, "WNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_send_packet = send_full;
 	port_send_partial = send_partial;
 	port_connect = aux_connect;
 	port_request = aux_request;
@@ -897,11 +895,11 @@ RemPort* WnetRemPort::receive(PACKET* packet)
 }
 
 
-static int send_full( RemPort* port, PACKET* packet)
+XDR_INT WnetRemPort::send(PACKET* packet)
 {
 /**************************************
  *
- *	s e n d _ f u l l
+ *	s e n d
  *
  **************************************
  *
@@ -911,13 +909,13 @@ static int send_full( RemPort* port, PACKET* packet)
  **************************************/
 
 #ifdef DEV_BUILD
-	port->port_send.x_client = !(port->port_flags & PORT_server);
+	port_send.x_client = !(port_flags & PORT_server);
 #endif
 
-	if (!xdr_protocol(&port->port_send, packet))
+	if (!xdr_protocol(&port_send, packet))
 		return FALSE;
 
-	return xdrwnet_endofrecord(&port->port_send); //, TRUE);
+	return xdrwnet_endofrecord(&port_send); //, TRUE);
 }
 
 

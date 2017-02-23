@@ -48,6 +48,7 @@ public:
 	virtual void		disconnect();
 	virtual void		force_close();
 	virtual RemPort*	receive(PACKET* packet);
+	virtual XDR_INT		send(PACKET* packet);
 };
 #endif // NO_PORT
 

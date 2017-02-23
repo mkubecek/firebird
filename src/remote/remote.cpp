@@ -661,11 +661,6 @@ void RemPort::abort_aux_connection()
 	}
 }
 
-XDR_INT RemPort::send(PACKET* pckt)
-{
-	return (*this->port_send_packet)(this, pckt);
-}
-
 XDR_INT RemPort::send_partial(PACKET* pckt)
 {
 	return (*this->port_send_partial)(this, pckt);
