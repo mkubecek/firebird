@@ -24,6 +24,7 @@
 #ifndef REMOTE_INET_PROTO_H
 #define REMOTE_INET_PROTO_H
 
+#include "fb_types.h"
 #include "../common/classes/fb_string.h"
 #include "../common/classes/RefCounted.h"
 #include "../common/config/config.h"
@@ -33,14 +34,16 @@ namespace Firebird
 	class ClumpletReader;
 }
 
-RemPort*	INET_analyze(ClntAuthBlock*, const Firebird::PathName&, const TEXT*,
-						 bool, Firebird::ClumpletReader&, Firebird::RefPtr<const Config>*,
-						 const Firebird::PathName*, Firebird::ICryptKeyCallback*, int af = AF_UNSPEC);
-RemPort*	INET_connect(const TEXT*, struct packet*, USHORT, Firebird::ClumpletReader*,
-						 Firebird::RefPtr<const Config>*, int af = AF_UNSPEC);
-RemPort*	INET_reconnect(SOCKET);
-RemPort*	INET_server(SOCKET);
-void		setStopMainThread(FPTR_INT func);
+class InetRemPort;
+
+InetRemPort*	INET_analyze(ClntAuthBlock*, const Firebird::PathName&, const TEXT*,
+							 bool, Firebird::ClumpletReader&, Firebird::RefPtr<const Config>*,
+							 const Firebird::PathName*, Firebird::ICryptKeyCallback*, int af = AF_UNSPEC);
+InetRemPort*	INET_connect(const TEXT*, struct packet*, USHORT, Firebird::ClumpletReader*,
+							 Firebird::RefPtr<const Config>*, int af = AF_UNSPEC);
+InetRemPort*	INET_reconnect(SOCKET);
+InetRemPort*	INET_server(SOCKET);
+void			setStopMainThread(FPTR_INT func);
 
 class InetInitializer
 {
@@ -63,6 +66,11 @@ public:
 	virtual RemPort*	aux_request(PACKET* packet);
 	virtual bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
 	virtual void		abort_aux_connection();
+
+	void				getPeerInfo();
+	bool				setNoNagleOption();
+	void				error(bool releasePort, const TEXT* function, ISC_STATUS operation, int status);
+	void				genError(bool releasePort, const Firebird::Arg::StatusVector& v);
 };
 
 #endif // REMOTE_INET_PROTO_H

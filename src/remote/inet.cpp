@@ -439,21 +439,17 @@ static bool forkThreadStarted = false;
 static SocketsArray* forkSockets;
 #endif
 
-static void		get_peer_info(RemPort*);
-
-static void		inet_gen_error(bool, RemPort*, const Arg::StatusVector& v);
 static bool_t	inet_getbytes(XDR*, SCHAR *, u_int);
-static void		inet_error(bool, RemPort*, const TEXT*, ISC_STATUS, int);
 static bool_t	inet_putbytes(XDR*, const SCHAR*, u_int);
 static bool		inet_read(XDR*);
-static RemPort*		inet_try_connect(	PACKET*,
-									Rdb*,
-									const PathName&,
-									const TEXT*,
-									ClumpletReader&,
-									RefPtr<const Config>*,
-									const PathName*,
-									int);
+static InetRemPort*	inet_try_connect(PACKET*,
+									 Rdb*,
+									 const PathName&,
+									 const TEXT*,
+									 ClumpletReader&,
+									 RefPtr<const Config>*,
+									 const PathName*,
+									 int);
 static bool		inet_write(XDR*);
 static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrinfo* pai);
 
@@ -470,7 +466,6 @@ static void		select_port(RemPort*, Select*, RemPortPtr&);
 static bool		select_wait(RemPort*, Select*);
 
 static int		xdrinet_create(XDR*, RemPort*, UCHAR *, USHORT, enum xdr_op);
-static bool		setNoNagleOption(RemPort*);
 static bool		setFastLoopbackOption(SOCKET s);
 static FPTR_INT	tryStopMainThread = 0;
 
@@ -523,15 +518,15 @@ static GlobalPtr<PortsCleanup>	inet_ports;
 static GlobalPtr<SocketsArray> ports_to_close;
 
 
-RemPort* INET_analyze(ClntAuthBlock* cBlock,
-					   const PathName& file_name,
-					   const TEXT* node_name,
-					   bool uv_flag,
-					   ClumpletReader &dpb,
-					   RefPtr<const Config>* config,
-					   const PathName* ref_db_name,
-					   Firebird::ICryptKeyCallback* cryptCb,
-					   int af)
+InetRemPort* INET_analyze(ClntAuthBlock* cBlock,
+						  const PathName& file_name,
+						  const TEXT* node_name,
+						  bool uv_flag,
+						  ClumpletReader &dpb,
+						  RefPtr<const Config>* config,
+						  const PathName* ref_db_name,
+						  Firebird::ICryptKeyCallback* cryptCb,
+						  int af)
 {
 /**************************************
  *
@@ -626,7 +621,7 @@ RemPort* INET_analyze(ClntAuthBlock* cBlock,
 		}
 	}
 
-	RemPort* port = inet_try_connect(packet, rdb, file_name, node_name, dpb, config, ref_db_name, af);
+	InetRemPort* port = inet_try_connect(packet, rdb, file_name, node_name, dpb, config, ref_db_name, af);
 	P_ACPT* accept;
 
 	for (;;)
@@ -754,12 +749,12 @@ RemPort* INET_analyze(ClntAuthBlock* cBlock,
 	return port;
 }
 
-RemPort* INET_connect(const TEXT* name,
-					   PACKET* packet,
-					   USHORT flag,
-					   ClumpletReader* dpb,
-					   RefPtr<const Config>* config,
-					   int af)
+InetRemPort* INET_connect(const TEXT* name,
+						  PACKET* packet,
+						  USHORT flag,
+						  ClumpletReader* dpb,
+						  RefPtr<const Config>* config,
+						  int af)
 {
 /**************************************
  *
@@ -899,7 +894,7 @@ RemPort* INET_connect(const TEXT* name,
 	{
 		gds__log("INET/INET_connect: getaddrinfo(%s,%s) failed: %s",
 				host.c_str(), protocol.c_str(), gai_strerror(n));
-		inet_gen_error(true, port, Arg::Gds(isc_net_lookup_err) << Arg::Gds(isc_host_unknown));
+		port->genError(true, Arg::Gds(isc_net_lookup_err) << Arg::Gds(isc_host_unknown));
 	}
 
 	for (const addrinfo* pai = gai_result; pai; pai = pai->ai_next)
@@ -924,7 +919,7 @@ RemPort* INET_connect(const TEXT* name,
 				gds__log("setsockopt: error setting SO_KEEPALIVE");
 			}
 
-			if (!setNoNagleOption(port))
+			if (!port->setNoNagleOption())
 			{
 				gds__log("setsockopt: error setting TCP_NODELAY");
 				goto err_close;
@@ -936,7 +931,7 @@ RemPort* INET_connect(const TEXT* name,
 			if (n != -1)
 			{
 				port->port_peer_name = host;
-				get_peer_info(port);
+				port->getPeerInfo();
 				if (port->send(packet))
 					goto exit_free;
 			}
@@ -954,9 +949,9 @@ err_close:
 
 	// all attempts failed
 	if (packet)
-		inet_error(true, port, "connect", isc_net_connect_err, 0);
+		port->error(true, "connect", isc_net_connect_err, 0);
 	else
-		inet_error(true, port, "listen", isc_net_connect_listen_err, 0);
+		port->error(true, "listen", isc_net_connect_listen_err, 0);
 
 exit_free:
 	freeaddrinfo(gai_result);
@@ -1007,7 +1002,7 @@ static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrin
 					   (SCHAR*) &optval, sizeof(optval));
 		if (n == -1)
 		{
-			inet_error(true, port, "setsockopt REUSE", isc_net_connect_listen_err, INET_ERRNO);
+			port->error(true, "setsockopt REUSE", isc_net_connect_listen_err, INET_ERRNO);
 		}
 #endif
 
@@ -1025,12 +1020,12 @@ static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrin
 					   (SCHAR *) & lingerInfo, sizeof(lingerInfo));
 		if (n == -1)
 		{
-			inet_error(true, port, "setsockopt LINGER", isc_net_connect_listen_err, INET_ERRNO);
+			port->error(true, "setsockopt LINGER", isc_net_connect_listen_err, INET_ERRNO);
 		}
 
-		if (! setNoNagleOption(port))
+		if (!port->setNoNagleOption())
 		{
-			inet_error(true, port, "setsockopt TCP_NODELAY", isc_net_connect_listen_err, INET_ERRNO);
+			port->error(true, "setsockopt TCP_NODELAY", isc_net_connect_listen_err, INET_ERRNO);
 		}
 	}
 
@@ -1046,14 +1041,14 @@ static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrin
 
 	if (n == -1)
 	{
-		inet_error(true, port, "bind", isc_net_connect_listen_err, INET_ERRNO);
+		port->error(true, "bind", isc_net_connect_listen_err, INET_ERRNO);
 	}
 
 	n = listen(port->port_handle, SOMAXCONN);
 
 	if (n == -1)
 	{
-		inet_error(false, port, "listen", isc_net_connect_listen_err, INET_ERRNO);
+		port->error(false, "listen", isc_net_connect_listen_err, INET_ERRNO);
 	}
 
 	setFastLoopbackOption(port->port_handle);
@@ -1078,7 +1073,7 @@ static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrin
 		{
 			if (INET_shutting_down)
 				return NULL;
-			inet_error(true, port, "accept", isc_net_connect_err, inetErrNo);
+			port->error(true, "accept", isc_net_connect_err, inetErrNo);
 		}
 #ifdef WIN_NT
 		if (flag & SRVR_debug)
@@ -1130,7 +1125,7 @@ static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrin
 }
 
 
-RemPort* INET_reconnect(SOCKET handle)
+InetRemPort* INET_reconnect(SOCKET handle)
 {
 /**************************************
  *
@@ -1156,14 +1151,14 @@ RemPort* INET_reconnect(SOCKET handle)
 		gds__log("inet server err: setting KEEPALIVE socket option \n");
 	}
 
-	if (! setNoNagleOption(port)) {
+	if (!port->setNoNagleOption()) {
 		gds__log("inet server err: setting NODELAY socket option \n");
 	}
 
 	return port;
 }
 
-RemPort* INET_server(SOCKET sock)
+InetRemPort* INET_server(SOCKET sock)
 {
 /**************************************
  *
@@ -1188,7 +1183,7 @@ RemPort* INET_server(SOCKET sock)
 		gds__log("inet server err: setting KEEPALIVE socket option \n");
 	}
 
-	if (! setNoNagleOption(port)) {
+	if (!port->setNoNagleOption()) {
 		gds__log("inet server err: setting NODELAY socket option \n");
 	}
 
@@ -1263,7 +1258,7 @@ bool InetRemPort::accept(const p_cnct* cnct)
 	port_login = port_user_name = user_name;
 	port_peer_name = host_name;
 
-	get_peer_info(this);
+	getPeerInfo();
 
 	return true;
 }
@@ -1410,7 +1405,7 @@ RemPort* InetRemPort::aux_connect(PACKET* packet)
 						(count == 0) ? isc_net_event_connect_timeout : isc_net_event_connect_err;
 					int savedError = inetErrNo;
 					SOCLOSE(port_channel);
-					inet_error(false, this, "select", error_code, savedError);
+					error(false, "select", error_code, savedError);
 				}
 			}
 		}
@@ -1425,14 +1420,14 @@ RemPort* InetRemPort::aux_connect(PACKET* packet)
 		{
 			int savedError = inetErrNo;
 			SOCLOSE(port_channel);
-			inet_error(false, this, "accept", isc_net_event_connect_err, savedError);
+			error(false, "accept", isc_net_event_connect_err, savedError);
 		}
 
 		SOCLOSE(port_channel);
 		port_handle = n;
 		port_flags |= PORT_async;
 
-		get_peer_info(this);
+		getPeerInfo();
 
 		return this;
 	}
@@ -1459,7 +1454,7 @@ RemPort* InetRemPort::aux_connect(PACKET* packet)
 	{
 		int savedError = INET_ERRNO;
 		auxAcceptError(packet);
-		inet_error(false, this, "socket", isc_net_event_connect_err, savedError);
+		error(false, "socket", isc_net_event_connect_err, savedError);
 	}
 	SockAddr resp_address(response->p_resp_data.cstr_address, response->p_resp_data.cstr_length);
 	address.setPort(resp_address.port());
@@ -1471,7 +1466,7 @@ RemPort* InetRemPort::aux_connect(PACKET* packet)
 	{
 		int savedError = INET_ERRNO;
 		auxAcceptError(packet);
-		inet_error(false, this, "socket", isc_net_event_connect_err, savedError);
+		error(false, "socket", isc_net_event_connect_err, savedError);
 	}
 
 	int optval = 1;
@@ -1484,13 +1479,13 @@ RemPort* InetRemPort::aux_connect(PACKET* packet)
 		int savedError = INET_ERRNO;
 		SOCLOSE(n);
 		auxAcceptError(packet);
-		inet_error(false, this, "connect", isc_net_event_connect_err, savedError);
+		error(false, "connect", isc_net_event_connect_err, savedError);
 	}
 
 	new_port->port_handle = n;
 
 	new_port->port_peer_name = port_peer_name;
-	get_peer_info(new_port);
+	new_port->getPeerInfo();
 
 	return new_port;
 }
@@ -1514,7 +1509,7 @@ RemPort* InetRemPort::aux_request(PACKET* packet)
 	if (our_address.getsockname(port_handle) < 0)
 	{
 		gds__log("INET/aux_request: failed to get local address of the original socket");
-		inet_error(false, this, "getsockname", isc_net_event_listen_err, INET_ERRNO);
+		error(false, "getsockname", isc_net_event_listen_err, INET_ERRNO);
 	}
 	unsigned short aux_port = getPortConfig()->getRemoteAuxPort();
 	our_address.setPort(aux_port); // may be 0
@@ -1522,7 +1517,7 @@ RemPort* InetRemPort::aux_request(PACKET* packet)
 	SOCKET n = os_utils::socket(our_address.family(), SOCK_STREAM, 0);
 	if (n == INVALID_SOCKET)
 	{
-		inet_error(false, this, "socket", isc_net_event_listen_err, INET_ERRNO);
+		error(false, "socket", isc_net_event_listen_err, INET_ERRNO);
 	}
 
 	int optval;
@@ -1535,7 +1530,7 @@ RemPort* InetRemPort::aux_request(PACKET* packet)
 	optval = TRUE;
 	if (setsockopt(n, SOL_SOCKET, SO_REUSEADDR, (SCHAR*) &optval, sizeof(optval)) < 0)
 	{
-		inet_error(false, this, "setsockopt REUSE", isc_net_event_listen_err, INET_ERRNO);
+		error(false, "setsockopt REUSE", isc_net_event_listen_err, INET_ERRNO);
 	}
 #endif
 
@@ -1545,17 +1540,17 @@ RemPort* InetRemPort::aux_request(PACKET* packet)
 
 	if (bind(n, our_address.ptr(), our_address.length()) < 0)
 	{
-		inet_error(false, this, "bind", isc_net_event_listen_err, INET_ERRNO);
+		error(false, "bind", isc_net_event_listen_err, INET_ERRNO);
 	}
 
 	if (our_address.getsockname(n) < 0)
 	{
-		inet_error(false, this, "getsockname", isc_net_event_listen_err, INET_ERRNO);
+		error(false, "getsockname", isc_net_event_listen_err, INET_ERRNO);
 	}
 
 	if (listen(n, 1) < 0)
 	{
-		inet_error(false, this, "listen", isc_net_event_listen_err, INET_ERRNO);
+		error(false, "listen", isc_net_event_listen_err, INET_ERRNO);
 	}
 
 	setFastLoopbackOption(n);
@@ -1574,7 +1569,7 @@ RemPort* InetRemPort::aux_request(PACKET* packet)
 	SockAddr port_address;
 	if (port_address.getsockname(port_handle) < 0)
 	{
-		inet_error(false, this, "getsockname", isc_net_event_listen_err, INET_ERRNO);
+		error(false, "getsockname", isc_net_event_listen_err, INET_ERRNO);
 	}
 	port_address.setPort(our_address.port());
 
@@ -2028,7 +2023,7 @@ static RemPort* select_accept( RemPort* main_port)
 	port->port_handle = os_utils::accept(main_port->port_handle, NULL, NULL);
 	if (port->port_handle == INVALID_SOCKET)
 	{
-		inet_error(true, port, "accept", isc_net_connect_err, INET_ERRNO);
+		port->error(true, "accept", isc_net_connect_err, INET_ERRNO);
 	}
 
 	int optval = 1;
@@ -2367,11 +2362,11 @@ static void alarm_handler( int x)
 }
 #endif
 
-void get_peer_info(RemPort* port)
+void InetRemPort::getPeerInfo()
 {
 /**************************************
 *
-*	g e t _ p e e r _ i n f o
+*	g e t P e e r I n f o
 *
 **************************************
 *
@@ -2379,10 +2374,10 @@ void get_peer_info(RemPort* port)
 *	Port just connected. Obtain some info about connection and peer.
 *
 **************************************/
-	port->port_protocol_id = "TCPv4";
+	port_protocol_id = "TCPv4";
 
 	SockAddr address;
-	if (address.getpeername(port->port_handle) == 0)
+	if (address.getpeername(port_handle) == 0)
 	{
 		address.unmapV4();	// convert mapped IPv4 to regular IPv4
 		char host[64];		// 32 digits, 7 colons, 1 trailing null byte
@@ -2391,15 +2386,15 @@ void get_peer_info(RemPort* port)
 			serv, sizeof(serv), NI_NUMERICHOST | NI_NUMERICSERV);
 
 		if (!nameinfo)
-			port->port_address.printf("%s/%s", host, serv);
+			port_address.printf("%s/%s", host, serv);
 
 		if (address.family() == AF_INET6)
-			port->port_protocol_id = "TCPv6";
+			port_protocol_id = "TCPv6";
 	}
 }
 
 
-static void inet_gen_error(bool releasePort, RemPort* port, const Arg::StatusVector& v)
+void InetRemPort::genError(bool releasePort, const Arg::StatusVector& v)
 {
 /**************************************
  *
@@ -2413,13 +2408,13 @@ static void inet_gen_error(bool releasePort, RemPort* port, const Arg::StatusVec
  *	save the status vector strings in a permanent place.
  *
  **************************************/
-	port->port_state = RemPort::BROKEN;
+	port_state = RemPort::BROKEN;
 
-	string node_name(port->port_connection ? port->port_connection->str_data : "(unknown)");
+	string node_name(port_connection ? port_connection->str_data : "(unknown)");
 
 	if (releasePort)
 	{
-		port->disconnect();
+		disconnect();
 	}
 
 	Arg::Gds error(isc_network_error);
@@ -2500,7 +2495,7 @@ static bool_t inet_getbytes( XDR* xdrs, SCHAR* buff, u_int count)
 }
 
 
-static void inet_error(bool releasePort, RemPort* port, const TEXT* function, ISC_STATUS operation, int status)
+void InetRemPort::error(bool releasePort, const TEXT* function, ISC_STATUS operation, int status)
 {
 /**************************************
  *
@@ -2516,36 +2511,36 @@ static void inet_error(bool releasePort, RemPort* port, const TEXT* function, IS
  **************************************/
 	if (status)
 	{
-		if (port->port_state != RemPort::BROKEN)
+		if (port_state != RemPort::BROKEN)
 		{
 			string err;
 			err.printf("INET/inet_error: %s errno = %d", function, status);
 
-			if (port->port_peer_name.hasData() || port->port_address.hasData())
+			if (port_peer_name.hasData() || port_address.hasData())
 			{
-				err.append(port->port_flags & PORT_async ? ", aux " : ", ");
-				err.append(port->port_server_flags ? "client" : "server");
+				err.append(port_flags & PORT_async ? ", aux " : ", ");
+				err.append(port_server_flags ? "client" : "server");
 
-				if (port->port_peer_name.hasData())
+				if (port_peer_name.hasData())
 				{
 					err.append(" host = ");
-					err.append(port->port_peer_name);
+					err.append(port_peer_name);
 				}
 
-				if (port->port_address.hasData())
+				if (port_address.hasData())
 				{
-					if (port->port_peer_name.hasData())
+					if (port_peer_name.hasData())
 						err.append(",");
 
 					err.append(" address = ");
-					err.append(port->port_address);
+					err.append(port_address);
 				}
 			}
 
-			if (port->port_user_name.hasData())
+			if (port_user_name.hasData())
 			{
 				err.append(", user = ");
-				err.append(port->port_user_name);
+				err.append(port_user_name);
 			}
 
 			// Address could contain percent sign inside, therefore make
@@ -2553,12 +2548,12 @@ static void inet_error(bool releasePort, RemPort* port, const TEXT* function, IS
 			gds__log("%s", err.c_str());
 		}
 
-		inet_gen_error(releasePort, port, Arg::Gds(operation) << SYS_ERR(status));
+		genError(releasePort, Arg::Gds(operation) << SYS_ERR(status));
 	}
 	else
 	{
 		// No status value, just format the basic arguments.
-		inet_gen_error(releasePort, port, Arg::Gds(operation));
+		genError(releasePort, Arg::Gds(operation));
 	}
 }
 
@@ -2692,14 +2687,14 @@ static bool packet_receive2(RemPort* port, UCHAR* p, SSHORT bufSize, SSHORT* len
 	return true;
 }
 
-static RemPort* inet_try_connect(PACKET* packet,
-								  Rdb* rdb,
-								  const PathName& file_name,
-								  const TEXT* node_name,
-								  ClumpletReader& dpb,
-								  RefPtr<const Config>* config,
-								  const PathName* ref_db_name,
-								  int af)
+static InetRemPort* inet_try_connect(PACKET* packet,
+									 Rdb* rdb,
+									 const PathName& file_name,
+									 const TEXT* node_name,
+									 ClumpletReader& dpb,
+									 RefPtr<const Config>* config,
+									 const PathName* ref_db_name,
+									 int af)
 {
 /**************************************
  *
@@ -2728,7 +2723,7 @@ static RemPort* inet_try_connect(PACKET* packet,
 	// If we can't talk to a server, punt.  Let somebody else generate
 	// an error.  status_vector will have the network error info.
 
-	RemPort* port = NULL;
+	InetRemPort* port = NULL;
 	try
 	{
 		port = INET_connect(node_name, packet, false, &dpb, config, af);
@@ -2747,7 +2742,7 @@ static RemPort* inet_try_connect(PACKET* packet,
 	{
 		rdb->rdb_port = NULL;
 		delete rdb;
-		inet_error(true, port, "receive in try_connect", isc_net_connect_err, INET_ERRNO);
+		port->error(true, "receive in try_connect", isc_net_connect_err, INET_ERRNO);
 	}
 
 	return port;
@@ -2829,6 +2824,8 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
  *
  **************************************/
 
+	InetRemPort* iport = (InetRemPort*)port;
+
 	if (port->port_flags & PORT_disconnect) {
 		return false;
 	}
@@ -2860,7 +2857,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 	if (ph == INVALID_SOCKET)
 	{
 		if (!(port->port_flags & PORT_disconnect))
-			inet_error(true, port, "invalid socket in packet_receive", isc_net_read_err, EINVAL);
+			iport->error(true, "invalid socket in packet_receive", isc_net_read_err, EINVAL);
 
 		return false;
 	}
@@ -2914,7 +2911,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 				{
 					try
 					{
-						inet_error(false, port, "select in packet_receive", isc_net_read_err, inetErrNo);
+						iport->error(false, "select in packet_receive", isc_net_read_err, inetErrNo);
 					}
 					catch (const Exception&) { }
 				}
@@ -2969,7 +2966,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 	{
 		try
 		{
-			inet_error(false, port, "read", isc_net_read_err, inetErrNo);
+			iport->error(false, "read", isc_net_read_err, inetErrNo);
 		}
 		catch (const Exception&) { }
 		return false;
@@ -2993,7 +2990,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 			INET_force_error = 1;
 			try
 			{
-				inet_error(false, port, "simulated error - read", isc_net_read_err);
+				iport->error(false, "simulated error - read", isc_net_read_err);
 			}
 			catch (const Exception&) { }
 			return false;
@@ -3023,6 +3020,7 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
  *
  **************************************/
 
+	InetRemPort* iport = (InetRemPort*)port;
 	SSHORT length = buffer_length;
 	const char* data = buffer;
 
@@ -3075,7 +3073,7 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 
 			try
 			{
-				inet_error(false, port, "send", isc_net_write_err, INET_ERRNO);
+				iport->error(false, "send", isc_net_write_err, INET_ERRNO);
 			}
 			catch (const Exception&) { }
 			return false;
@@ -3150,7 +3148,7 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 		{
 			try
 			{
-				inet_error(false, port, "send/oob", isc_net_write_err, inetErrNo);
+				iport->error(false, "send/oob", isc_net_write_err, inetErrNo);
 			}
 			catch (const Exception&) { }
 			return false;
@@ -3169,7 +3167,7 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 			INET_force_error = 1;
 			try
 			{
-				inet_error(false, port, "simulated error - send", isc_net_write_err, 0);
+				iport->error(false, "simulated error - send", isc_net_write_err, 0);
 			}
 			catch (const Exception&) { }
 			return false;
@@ -3183,7 +3181,7 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 	return true;
 }
 
-static bool setNoNagleOption(RemPort* port)
+bool InetRemPort::setNoNagleOption()
 {
 /**************************************
  *
@@ -3196,10 +3194,10 @@ static bool setNoNagleOption(RemPort* port)
  *		in case of unexpected error
  *
  **************************************/
-	if (port->getPortConfig()->getTcpNoNagle())
+	if (getPortConfig()->getTcpNoNagle())
 	{
 		int optval = TRUE;
-		int n = setsockopt(port->port_handle, IPPROTO_TCP, TCP_NODELAY,
+		int n = setsockopt(port_handle, IPPROTO_TCP, TCP_NODELAY,
 						   (SCHAR*) &optval, sizeof(optval));
 
 		if (n == -1)
