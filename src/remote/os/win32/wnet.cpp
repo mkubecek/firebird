@@ -70,7 +70,6 @@ static bool		connect_client(RemPort*);
 static void		exit_handler(void*);
 #endif
 static rem_str*		make_pipe_name(const RefPtr<const Config>&, const TEXT*, const TEXT*, const TEXT*);
-static int		send_partial(RemPort*, PACKET*);
 static int		xdrwnet_create(XDR*, RemPort*, UCHAR*, USHORT, xdr_op);
 static bool_t	xdrwnet_endofrecord(XDR*);//, int);
 static bool		wnet_error(RemPort*, const TEXT*, ISC_STATUS, int);
@@ -514,7 +513,6 @@ static WnetRemPort::WnetRemPort(RemPort* parent)
 	sprintf(buffer, "WNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_send_partial = send_partial;
 	port_connect = aux_connect;
 	port_request = aux_request;
 	port_buff_size = BUFFER_SIZE;
@@ -919,7 +917,7 @@ XDR_INT WnetRemPort::send(PACKET* packet)
 }
 
 
-static int send_partial( RemPort* port, PACKET* packet)
+XDR_INT WnetRemPort::send_partial(PACKET* packet)
 {
 /**************************************
  *
@@ -933,10 +931,10 @@ static int send_partial( RemPort* port, PACKET* packet)
  **************************************/
 
 #ifdef DEV_BUILD
-	port->port_send.x_client = !(port->port_flags & PORT_server);
+	port_send.x_client = !(port_flags & PORT_server);
 #endif
 
-	return xdr_protocol(&port->port_send, packet);
+	return xdr_protocol(&port_send, packet);
 }
 
 

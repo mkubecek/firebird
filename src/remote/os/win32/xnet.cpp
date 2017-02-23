@@ -61,8 +61,6 @@ static void cleanup_comm(XCC);
 static void cleanup_port(RemPort*);
 static int cleanup_ports(const int, const int, void* arg);
 
-static int send_partial(RemPort*, PACKET*);
-
 static int xdrxnet_create(XDR*, RemPort*, UCHAR*, USHORT, xdr_op);
 
 static bool_t xnet_getbytes(XDR*, SCHAR*, u_int);
@@ -678,7 +676,6 @@ XnetRemPort::XnetRemPort(RemPort* parent,
 	fb_utils::snprintf(buffer, sizeof(buffer), "XNet (%s)", port_host->str_data);
 	port_version = REMOTE_make_string(buffer);
 
-	port_send_partial = send_partial;
 	port_connect = aux_connect;
 	port_request = aux_request;
 	port_buff_size = send_length;
@@ -1621,7 +1618,7 @@ XDR_INT XnetRemPort::send(PACKET* packet)
 }
 
 
-static int send_partial( RemPort* port, PACKET* packet)
+XDR_INT XnetRemPort::send_partial(PACKET* packet)
 {
 /**************************************
  *
@@ -1635,10 +1632,10 @@ static int send_partial( RemPort* port, PACKET* packet)
  **************************************/
 
 #ifdef DEV_BUILD
-	port->port_send.x_client = !(port->port_flags & PORT_server);
+	port_send.x_client = !(port_flags & PORT_server);
 #endif
 
-	return xdr_protocol(&port->port_send, packet);
+	return xdr_protocol(&port_send, packet);
 }
 
 void XnetClientEndPoint::server_shutdown(RemPort* port)

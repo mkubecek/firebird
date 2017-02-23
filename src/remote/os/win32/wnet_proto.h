@@ -48,6 +48,7 @@ public:
 	virtual void		force_close();
 	virtual RemPort*	receive(PACKET* packet);
 	virtual XDR_INT		send(PACKET* packet);
+	virtual XDR_INT		send_partial(PACKET* packet);
 };
 
 #endif // REMOTE_WNET_PROTO_H

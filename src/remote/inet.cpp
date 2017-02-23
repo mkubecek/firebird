@@ -472,7 +472,6 @@ static RemPort*		select_accept(RemPort*);
 static void		select_port(RemPort*, Select*, RemPortPtr&);
 static bool		select_multi(RemPort*, UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr&);
 static bool		select_wait(RemPort*, Select*);
-static int		send_partial(RemPort*, PACKET *);
 
 static int		xdrinet_create(XDR*, RemPort*, UCHAR *, USHORT, enum xdr_op);
 static bool		setNoNagleOption(RemPort*);
@@ -1328,7 +1327,6 @@ InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
 	port_version = REMOTE_make_string(buffer);
 
 	port_select_multi = ::select_multi;
-	port_send_partial = ::send_partial;
 	port_connect = aux_connect;
 	port_abort_aux_connection = ::abort_aux_connection;
 	port_request = aux_request;
@@ -2305,7 +2303,7 @@ XDR_INT InetRemPort::send(PACKET* packet)
 	return REMOTE_deflate(&port_send, inet_write, packet_send, true);
 }
 
-static int send_partial( RemPort* port, PACKET * packet)
+XDR_INT InetRemPort::send_partial(PACKET* packet)
 {
 /**************************************
  *
@@ -2332,10 +2330,10 @@ static int send_partial( RemPort* port, PACKET * packet)
 #endif
 
 #ifdef DEV_BUILD
-	port->port_send.x_client = !(port->port_flags & PORT_server);
+	port_send.x_client = !(port_flags & PORT_server);
 #endif
 
-	return xdr_protocol(&port->port_send, packet);
+	return xdr_protocol(&port_send, packet);
 }
 
 
