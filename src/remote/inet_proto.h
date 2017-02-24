@@ -34,8 +34,6 @@ namespace Firebird
 	class ClumpletReader;
 }
 
-void			setStopMainThread(FPTR_INT func);
-
 class InetInitializer
 {
 protected:

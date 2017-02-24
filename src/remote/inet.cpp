@@ -459,8 +459,6 @@ static bool		select_wait(RemPort*, Select*);
 
 static int		xdrinet_create(XDR*, RemPort*, UCHAR *, USHORT, enum xdr_op);
 static bool		setFastLoopbackOption(SOCKET s);
-static FPTR_INT	tryStopMainThread = 0;
-
 
 
 static XDR::xdr_ops inet_ops =
@@ -2195,14 +2193,6 @@ static bool select_wait( RemPort* main_port, Select* selct)
 
 		for (;;)
 		{
-			// Before waiting for incoming packet, check for server shutdown
-			if (tryStopMainThread && tryStopMainThread())
-			{
-				// this is not server port any more
-				main_port->port_server_flags &= ~SRVR_multi_client;
-				return false;
-			}
-
 			// Some platforms change the timeout in the select call.
 			// Reset timeout for each iteration to avoid problems.
 			timeout.tv_sec = SELECT_TIMEOUT;
@@ -3213,22 +3203,6 @@ bool setFastLoopbackOption(SOCKET s)
 #else
 	return false;
 #endif
-}
-
-void setStopMainThread(FPTR_INT func)
-{
-/**************************************
- *
- *   s e t S t o p M a i n T h r e a d
- *
- **************************************
- *
- * Functional description
- *	Set function called by main thread
- *	in order to check for shutdown.
- *
- **************************************/
-	tryStopMainThread = func;
 }
 
 namespace os_utils
