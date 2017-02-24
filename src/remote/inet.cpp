@@ -443,7 +443,6 @@ static bool_t	inet_getbytes(XDR*, SCHAR *, u_int);
 static bool_t	inet_putbytes(XDR*, const SCHAR*, u_int);
 static bool		inet_read(XDR*);
 static bool		inet_write(XDR*);
-static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrinfo* pai);
 
 #ifdef DEBUG
 static void packet_print(const TEXT*, const UCHAR*, int, ULONG);
@@ -452,13 +451,8 @@ static void packet_print(const TEXT*, const UCHAR*, int, ULONG);
 static bool		packet_receive(RemPort*, UCHAR*, SSHORT, SSHORT*);
 static bool		packet_receive2(RemPort*, UCHAR*, SSHORT, SSHORT*);
 static bool		packet_send(RemPort*, const SCHAR*, SSHORT);
-static RemPort*		select_accept(RemPort*);
-
-static void		select_port(RemPort*, Select*, RemPortPtr&);
-static bool		select_wait(RemPort*, Select*);
 
 static int		xdrinet_create(XDR*, RemPort*, UCHAR *, USHORT, enum xdr_op);
-static bool		setFastLoopbackOption(SOCKET s);
 
 
 static XDR::xdr_ops inet_ops =
@@ -929,7 +923,7 @@ InetRemPort* InetRemPort::connect(const TEXT* name,
 		else
 		{
 			// server
-			port = listener_socket(port, flag, pai);
+			port = port->listener_socket(flag, pai);
 			goto exit_free;
 		}
 
@@ -948,7 +942,7 @@ exit_free:
 	return port;
 }
 
-static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrinfo* pai)
+InetRemPort* InetRemPort::listener_socket(USHORT flag, const addrinfo* pai)
 {
 /**************************************
  *
@@ -967,9 +961,9 @@ static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrin
  *
  **************************************/
 
-	int ipv6_v6only = port->getPortConfig()->getIPv6V6Only() ? 1 : 0;
+	int ipv6_v6only = getPortConfig()->getIPv6V6Only() ? 1 : 0;
 
-	int n = setsockopt(port->port_handle, IPPROTO_IPV6, IPV6_V6ONLY,
+	int n = setsockopt(port_handle, IPPROTO_IPV6, IPV6_V6ONLY,
 				   (SCHAR*) &ipv6_v6only, sizeof(ipv6_v6only));
 
 	if (n == -1)
@@ -988,34 +982,34 @@ static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrin
 		//			e.g. while it's listening. This is surely not what we want.
 
 		int optval = TRUE;
-		n = setsockopt(port->port_handle, SOL_SOCKET, SO_REUSEADDR,
+		n = setsockopt(port_handle, SOL_SOCKET, SO_REUSEADDR,
 					   (SCHAR*) &optval, sizeof(optval));
 		if (n == -1)
 		{
-			port->error(true, "setsockopt REUSE", isc_net_connect_listen_err, INET_ERRNO);
+			error(true, "setsockopt REUSE", isc_net_connect_listen_err, INET_ERRNO);
 		}
 #endif
 
 		// Get any values for SO_LINGER so that they can be reset during
 		// disconnect.  SO_LINGER should be set by default on the socket
 
-		socklen_t optlen = sizeof(port->port_linger);
-		n = getsockopt(port->port_handle, SOL_SOCKET, SO_LINGER,
-					   (SCHAR *) & port->port_linger, &optlen);
+		socklen_t optlen = sizeof(port_linger);
+		n = getsockopt(port_handle, SOL_SOCKET, SO_LINGER,
+					   (SCHAR *) &port_linger, &optlen);
 
 		if (n != 0)				// getsockopt failed
-			port->port_linger.l_onoff = 0;
+			port_linger.l_onoff = 0;
 
-		n = setsockopt(port->port_handle, SOL_SOCKET, SO_LINGER,
+		n = setsockopt(port_handle, SOL_SOCKET, SO_LINGER,
 					   (SCHAR *) & lingerInfo, sizeof(lingerInfo));
 		if (n == -1)
 		{
-			port->error(true, "setsockopt LINGER", isc_net_connect_listen_err, INET_ERRNO);
+			error(true, "setsockopt LINGER", isc_net_connect_listen_err, INET_ERRNO);
 		}
 
-		if (!port->setNoNagleOption())
+		if (!setNoNagleOption())
 		{
-			port->error(true, "setsockopt TCP_NODELAY", isc_net_connect_listen_err, INET_ERRNO);
+			error(true, "setsockopt TCP_NODELAY", isc_net_connect_listen_err, INET_ERRNO);
 		}
 	}
 
@@ -1026,44 +1020,44 @@ static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrin
 	{
 		if (++retry)
 			sleep(10);
-		n = bind(port->port_handle, pai->ai_addr, pai->ai_addrlen);
+		n = bind(port_handle, pai->ai_addr, pai->ai_addrlen);
 	} while (n == -1 && INET_ERRNO == INET_ADDR_IN_USE && retry < INET_RETRY_CALL);
 
 	if (n == -1)
 	{
-		port->error(true, "bind", isc_net_connect_listen_err, INET_ERRNO);
+		error(true, "bind", isc_net_connect_listen_err, INET_ERRNO);
 	}
 
-	n = listen(port->port_handle, SOMAXCONN);
+	n = listen(port_handle, SOMAXCONN);
 
 	if (n == -1)
 	{
-		port->error(false, "listen", isc_net_connect_listen_err, INET_ERRNO);
+		error(false, "listen", isc_net_connect_listen_err, INET_ERRNO);
 	}
 
-	setFastLoopbackOption(port->port_handle);
+	setFastLoopbackOption(port_handle);
 
-	inet_ports->registerPort(port);
+	inet_ports->registerPort(this);
 
 	if (flag & SRVR_multi_client)
 	{
 		// Prevent the generation of dummy keepalive packets on the connect port.
 
-		port->port_dummy_packet_interval = 0;
-		port->port_dummy_timeout = 0;
-		port->port_server_flags |= (SRVR_server | SRVR_multi_client);
-		return port;
+		port_dummy_packet_interval = 0;
+		port_dummy_timeout = 0;
+		port_server_flags |= (SRVR_server | SRVR_multi_client);
+		return this;
 	}
 
 	while (true)
 	{
-		SOCKET s = os_utils::accept(port->port_handle, NULL, NULL);
+		SOCKET s = os_utils::accept(port_handle, NULL, NULL);
 		const int inetErrNo = INET_ERRNO;
 		if (s == INVALID_SOCKET)
 		{
 			if (INET_shutting_down)
 				return NULL;
-			port->error(true, "accept", isc_net_connect_err, inetErrNo);
+			error(true, "accept", isc_net_connect_err, inetErrNo);
 		}
 #ifdef WIN_NT
 		if (flag & SRVR_debug)
@@ -1071,11 +1065,11 @@ static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrin
 		if ((flag & SRVR_debug) || !fork())
 #endif
 		{
-			SOCLOSE(port->port_handle);
-			port->port_handle = s;
-			port->port_server_flags |= SRVR_server;
-			port->port_flags |= PORT_server;
-			return port;
+			SOCLOSE(port_handle);
+			port_handle = s;
+			port_server_flags |= SRVR_server;
+			port_flags |= PORT_server;
+			return this;
 		}
 
 #ifdef WIN_NT
@@ -1941,7 +1935,7 @@ bool InetRemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, Re
 
 	for (;;)
 	{
-		select_port(this, &INET_select, port);
+		select_port(&INET_select, port);
 		if (port == this && (port->port_server_flags & SRVR_multi_client))
 		{
 			if (INET_shutting_down)
@@ -1954,7 +1948,7 @@ bool InetRemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, Re
 					SOCLOSE(port_handle);
 				}
 			}
-			else if (port = select_accept(this))
+			else if (port = select_accept())
 			{
 				if (!REMOTE_inflate(port, packet_receive, buffer, bufsize, length))
 				{
@@ -1986,7 +1980,7 @@ bool InetRemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, Re
 			}
 			return (*length) ? true : false;
 		}
-		if (!select_wait(this, &INET_select))
+		if (!select_wait(&INET_select))
 		{
 			port = NULL;
 			return false;
@@ -1994,7 +1988,7 @@ bool InetRemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, Re
 	}
 }
 
-static RemPort* select_accept( RemPort* main_port)
+RemPort* InetRemPort::select_accept()
 {
 /**************************************
  *
@@ -2007,10 +2001,10 @@ static RemPort* select_accept( RemPort* main_port)
  *
  **************************************/
 
-	InetRemPort* const port = alloc_port(main_port);
+	InetRemPort* const port = alloc_port(this);
 	inet_ports->registerPort(port);
 
-	port->port_handle = os_utils::accept(main_port->port_handle, NULL, NULL);
+	port->port_handle = os_utils::accept(port_handle, NULL, NULL);
 	if (port->port_handle == INVALID_SOCKET)
 	{
 		port->error(true, "accept", isc_net_connect_err, INET_ERRNO);
@@ -2021,7 +2015,7 @@ static RemPort* select_accept( RemPort* main_port)
 
 	port->port_flags |= PORT_server;
 
-	if (main_port->port_server_flags & SRVR_thread_per_port)
+	if (port_server_flags & SRVR_thread_per_port)
 	{
 		port->port_server_flags = (SRVR_server | SRVR_inet | SRVR_thread_per_port);
 		return port;
@@ -2030,7 +2024,7 @@ static RemPort* select_accept( RemPort* main_port)
 	return 0;
 }
 
-static void select_port(RemPort* main_port, Select* selct, RemPortPtr& port)
+void InetRemPort::select_port(Select* selct, RemPortPtr& port)
 {
 /**************************************
  *
@@ -2050,7 +2044,7 @@ static void select_port(RemPort* main_port, Select* selct, RemPortPtr& port)
 
 	MutexLockGuard guard(port_mutex, FB_FUNCTION);
 
-	for (port = main_port; port; port = port->port_next)
+	for (port = this; port; port = port->port_next)
 	{
 		Select::HandleState result = selct->ok(port);
 		selct->unset(port->port_handle);
@@ -2078,7 +2072,7 @@ static void select_port(RemPort* main_port, Select* selct, RemPortPtr& port)
 	}
 }
 
-static bool select_wait( RemPort* main_port, Select* selct)
+bool InetRemPort::select_wait(Select* selct)
 {
 /**************************************
  *
@@ -2124,7 +2118,7 @@ static bool select_wait( RemPort* main_port, Select* selct)
 				SOCLOSE(s);
 			}
 
-			for (RemPort* port = main_port; port; port = port->port_next)
+			for (RemPort* port = this; port; port = port->port_next)
 			{
 				if (port->port_state == RemPort::PENDING &&
 					// don't wait on still listening (not connected) async port
@@ -2173,7 +2167,7 @@ static bool select_wait( RemPort* main_port, Select* selct)
 					}
 
 					// if process is shuting down - don't listen on main port
-					if (!INET_shutting_down || port != main_port)
+					if (!INET_shutting_down || port != this)
 					{
 						selct->set(port->port_handle);
 						found = true;
@@ -2185,7 +2179,7 @@ static bool select_wait( RemPort* main_port, Select* selct)
 
 		if (!found)
 		{
-			if (!INET_shutting_down && (main_port->port_server_flags & SRVR_multi_client))
+			if (!INET_shutting_down && (port_server_flags & SRVR_multi_client))
 				gds__log("INET/select_wait: client rundown complete, server exiting");
 
 			return false;
@@ -2215,7 +2209,7 @@ static bool select_wait( RemPort* main_port, Select* selct)
 				if (selct->getCount() == 0)
 				{
 					MutexLockGuard guard(port_mutex, FB_FUNCTION);
-					for (RemPort* port = main_port; port; port = port->port_next)
+					for (RemPort* port = this; port; port = port->port_next)
 					{
 						selct->unset(port->port_handle);
 					}
@@ -3190,7 +3184,7 @@ bool InetRemPort::setNoNagleOption()
 	return true;
 }
 
-bool setFastLoopbackOption(SOCKET s)
+bool InetRemPort::setFastLoopbackOption(SOCKET s)
 {
 #ifdef WIN_NT
 	int optval = 1;

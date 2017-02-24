@@ -40,6 +40,9 @@ protected:
 	InetInitializer();
 };
 
+struct addrinfo;
+class Select;
+
 class InetRemPort : protected InetInitializer, public RemPort
 {
 public:
@@ -67,16 +70,22 @@ public:
 	static InetRemPort*	server(SOCKET sock);
 
 	// these should be protected eventually
-	void				getPeerInfo();
-	bool				setNoNagleOption();
 	void				error(bool releasePort, const TEXT* function, ISC_STATUS operation, int status);
-	void				genError(bool releasePort, const Firebird::Arg::StatusVector& v);
 
 protected:
 	static InetRemPort*	try_connect(PACKET* packet, Rdb* rdb, const Firebird::PathName& file_name,
 									const TEXT* node_name, Firebird::ClumpletReader& dpb,
 									Firebird::RefPtr<const Config>* config, const Firebird::PathName* ref_db_name,
 									int af);
+	static bool			setFastLoopbackOption(SOCKET s);
+
+	void				getPeerInfo();
+	bool				setNoNagleOption();
+	void				genError(bool releasePort, const Firebird::Arg::StatusVector& v);
+	InetRemPort*		listener_socket(USHORT flag, const addrinfo* pai);
+	RemPort*			select_accept();
+	void				select_port(Select* selct, RemPortPtr& port);
+	bool				select_wait(Select* selct);
 };
 
 #endif // REMOTE_INET_PROTO_H
