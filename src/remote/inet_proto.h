@@ -73,6 +73,7 @@ public:
 	void				error(bool releasePort, const TEXT* function, ISC_STATUS operation, int status);
 
 protected:
+	static InetRemPort*	allocPort(RemPort* parent = NULL, USHORT flags = 0);
 	static InetRemPort*	try_connect(PACKET* packet, Rdb* rdb, const Firebird::PathName& file_name,
 									const TEXT* node_name, Firebird::ClumpletReader& dpb,
 									Firebird::RefPtr<const Config>* config, const Firebird::PathName* ref_db_name,
@@ -86,6 +87,8 @@ protected:
 	RemPort*			select_accept();
 	void				select_port(Select* selct, RemPortPtr& port);
 	bool				select_wait(Select* selct);
+
+	friend class InetInitializer;			// needs allocPort()
 };
 
 #endif // REMOTE_INET_PROTO_H

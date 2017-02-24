@@ -410,7 +410,6 @@ private:
 #ifdef HAVE_SETITIMER
 static void		alarm_handler(int);
 #endif
-static InetRemPort*	alloc_port(RemPort*, const USHORT = 0);
 
 #if !defined(WIN_NT)
 static THREAD_ENTRY_DECLARE waitThread(THREAD_ENTRY_PARAM);
@@ -768,7 +767,7 @@ InetRemPort* InetRemPort::connect(const TEXT* name,
 	}
 #endif
 
-	InetRemPort* port = alloc_port(NULL);
+	InetRemPort* port = allocPort();
 	if (config)
 	{
 		port->port_config = *config;
@@ -1123,7 +1122,7 @@ InetRemPort* InetRemPort::reconnect(SOCKET sock)
  *	a port block.
  *
  **************************************/
-	InetRemPort* const port = alloc_port(NULL);
+	InetRemPort* const port = allocPort();
 
 	port->port_handle = sock;
 	port->port_flags |= PORT_server;
@@ -1156,7 +1155,7 @@ InetRemPort* InetRemPort::server(SOCKET sock)
  *
  **************************************/
 	int n = 0;
-	InetRemPort* const port = alloc_port(NULL);
+	InetRemPort* const port = allocPort();
 	port->port_flags |= PORT_server;
 	port->port_server_flags |= SRVR_server;
 	port->port_handle = sock;
@@ -1284,11 +1283,11 @@ InetInitializer::InetInitializer()
 	INET_initialized = true;
 
 	// This must go AFTER 'INET_initialized = true' to avoid recursion
-	inet_async_receive = alloc_port(0);
+	inet_async_receive = InetRemPort::allocPort();
 	inet_async_receive->port_flags |= PORT_server;
 }
 
-InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
+InetRemPort::InetRemPort(RemPort* parent, USHORT flags)
 	: InetInitializer(), RemPort(RemPort::INET, INET_remote_buffer * 2)
 {
 	REMOTE_get_timeout_params(this, 0);
@@ -1319,7 +1318,7 @@ InetRemPort::InetRemPort(RemPort* const parent, const USHORT flags)
 	}
 }
 
-static InetRemPort* alloc_port(RemPort* const parent, const USHORT flags)
+InetRemPort* InetRemPort::allocPort(RemPort* parent, USHORT flags)
 {
 /**************************************
  *
@@ -1416,7 +1415,7 @@ RemPort* InetRemPort::aux_connect(PACKET* packet)
 		return this;
 	}
 
-	InetRemPort* const new_port = alloc_port(port_parent,
+	InetRemPort* const new_port = allocPort(port_parent,
 		(port_flags & PORT_no_oob) | PORT_async);
 	port_async = new_port;
 	new_port->port_dummy_packet_interval = port_dummy_packet_interval;
@@ -1539,7 +1538,7 @@ RemPort* InetRemPort::aux_request(PACKET* packet)
 
 	setFastLoopbackOption(n);
 
-	InetRemPort* const new_port = alloc_port(port_parent,
+	InetRemPort* const new_port = allocPort(port_parent,
 		(port_flags & PORT_no_oob) | PORT_async | PORT_connecting);
 	port_async = new_port;
 	new_port->port_dummy_packet_interval = port_dummy_packet_interval;
@@ -2001,7 +2000,7 @@ RemPort* InetRemPort::select_accept()
  *
  **************************************/
 
-	InetRemPort* const port = alloc_port(this);
+	InetRemPort* const port = allocPort(this);
 	inet_ports->registerPort(port);
 
 	port->port_handle = os_utils::accept(port_handle, NULL, NULL);
