@@ -285,7 +285,7 @@ int WINAPI WinMain(HINSTANCE hThisInst, HINSTANCE /*hPrevInst*/, LPSTR lpszArgs,
 		{
 			if (server_flag & SRVR_inet)
 			{
-				port = INET_reconnect((SOCKET) connection_handle);
+				port = InetRemPort::reconnect((SOCKET) connection_handle);
 
 				if (port)
 				{
@@ -396,7 +396,7 @@ static THREAD_ENTRY_DECLARE inet_connect_wait_thread(THREAD_ENTRY_PARAM)
 		RemPort* port = NULL;
 		try
 		{
-			port = INET_connect(protocol_inet, NULL, server_flag, 0, NULL);
+			port = InetRemPort::connect(protocol_inet, NULL, server_flag, 0, NULL);
 		}
 		catch (const Exception& ex)
 		{

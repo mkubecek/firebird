@@ -34,15 +34,6 @@ namespace Firebird
 	class ClumpletReader;
 }
 
-class InetRemPort;
-
-InetRemPort*	INET_analyze(ClntAuthBlock*, const Firebird::PathName&, const TEXT*,
-							 bool, Firebird::ClumpletReader&, Firebird::RefPtr<const Config>*,
-							 const Firebird::PathName*, Firebird::ICryptKeyCallback*, int af = AF_UNSPEC);
-InetRemPort*	INET_connect(const TEXT*, struct packet*, USHORT, Firebird::ClumpletReader*,
-							 Firebird::RefPtr<const Config>*, int af = AF_UNSPEC);
-InetRemPort*	INET_reconnect(SOCKET);
-InetRemPort*	INET_server(SOCKET);
 void			setStopMainThread(FPTR_INT func);
 
 class InetInitializer
@@ -67,10 +58,27 @@ public:
 	virtual bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
 	virtual void		abort_aux_connection();
 
+	// public interface
+	static InetRemPort*	analyze(ClntAuthBlock* cBlock, const Firebird::PathName& file_name,
+								const TEXT* node_name, bool uv_flag, Firebird::ClumpletReader &dpb,
+								Firebird::RefPtr<const Config>* config, const Firebird::PathName* ref_db_name,
+								Firebird::ICryptKeyCallback* cryptCb, int af = AF_UNSPEC);
+	static InetRemPort*	connect(const TEXT* name, PACKET* packet, USHORT flag, Firebird::ClumpletReader* dpb,
+								Firebird::RefPtr<const Config>* config, int af = AF_UNSPEC);
+	static InetRemPort* reconnect(SOCKET sock);
+	static InetRemPort*	server(SOCKET sock);
+
+	// these should be protected eventually
 	void				getPeerInfo();
 	bool				setNoNagleOption();
 	void				error(bool releasePort, const TEXT* function, ISC_STATUS operation, int status);
 	void				genError(bool releasePort, const Firebird::Arg::StatusVector& v);
+
+protected:
+	static InetRemPort*	try_connect(PACKET* packet, Rdb* rdb, const Firebird::PathName& file_name,
+									const TEXT* node_name, Firebird::ClumpletReader& dpb,
+									Firebird::RefPtr<const Config>* config, const Firebird::PathName* ref_db_name,
+									int af);
 };
 
 #endif // REMOTE_INET_PROTO_H

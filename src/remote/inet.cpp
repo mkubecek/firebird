@@ -442,14 +442,6 @@ static SocketsArray* forkSockets;
 static bool_t	inet_getbytes(XDR*, SCHAR *, u_int);
 static bool_t	inet_putbytes(XDR*, const SCHAR*, u_int);
 static bool		inet_read(XDR*);
-static InetRemPort*	inet_try_connect(PACKET*,
-									 Rdb*,
-									 const PathName&,
-									 const TEXT*,
-									 ClumpletReader&,
-									 RefPtr<const Config>*,
-									 const PathName*,
-									 int);
 static bool		inet_write(XDR*);
 static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrinfo* pai);
 
@@ -518,19 +510,19 @@ static GlobalPtr<PortsCleanup>	inet_ports;
 static GlobalPtr<SocketsArray> ports_to_close;
 
 
-InetRemPort* INET_analyze(ClntAuthBlock* cBlock,
-						  const PathName& file_name,
-						  const TEXT* node_name,
-						  bool uv_flag,
-						  ClumpletReader &dpb,
-						  RefPtr<const Config>* config,
-						  const PathName* ref_db_name,
-						  Firebird::ICryptKeyCallback* cryptCb,
-						  int af)
+InetRemPort* InetRemPort::analyze(ClntAuthBlock* cBlock,
+								  const PathName& file_name,
+								  const TEXT* node_name,
+								  bool uv_flag,
+								  ClumpletReader &dpb,
+								  RefPtr<const Config>* config,
+								  const PathName* ref_db_name,
+								  Firebird::ICryptKeyCallback* cryptCb,
+								  int af)
 {
 /**************************************
  *
- *	I N E T _ a n a l y z e
+ *	a n a l y z e
  *
  **************************************
  *
@@ -621,7 +613,7 @@ InetRemPort* INET_analyze(ClntAuthBlock* cBlock,
 		}
 	}
 
-	InetRemPort* port = inet_try_connect(packet, rdb, file_name, node_name, dpb, config, ref_db_name, af);
+	InetRemPort* port = try_connect(packet, rdb, file_name, node_name, dpb, config, ref_db_name, af);
 	P_ACPT* accept;
 
 	for (;;)
@@ -749,16 +741,16 @@ InetRemPort* INET_analyze(ClntAuthBlock* cBlock,
 	return port;
 }
 
-InetRemPort* INET_connect(const TEXT* name,
-						  PACKET* packet,
-						  USHORT flag,
-						  ClumpletReader* dpb,
-						  RefPtr<const Config>* config,
-						  int af)
+InetRemPort* InetRemPort::connect(const TEXT* name,
+								  PACKET* packet,
+								  USHORT flag,
+								  ClumpletReader* dpb,
+								  RefPtr<const Config>* config,
+								  int af)
 {
 /**************************************
  *
- *	I N E T _ c o n n e c t
+ *	c o n n e c t
  *
  **************************************
  *
@@ -927,7 +919,7 @@ InetRemPort* INET_connect(const TEXT* name,
 
 			setFastLoopbackOption(port->port_handle);
 
-			n = connect(port->port_handle, pai->ai_addr, pai->ai_addrlen);
+			n = ::connect(port->port_handle, pai->ai_addr, pai->ai_addrlen);
 			if (n != -1)
 			{
 				port->port_peer_name = host;
@@ -1125,11 +1117,11 @@ static InetRemPort* listener_socket(InetRemPort* port, USHORT flag, const addrin
 }
 
 
-InetRemPort* INET_reconnect(SOCKET handle)
+InetRemPort* InetRemPort::reconnect(SOCKET sock)
 {
 /**************************************
  *
- *	I N E T _ r e c o n n e c t
+ *	r e c o n n e c t
  *
  **************************************
  *
@@ -1141,7 +1133,7 @@ InetRemPort* INET_reconnect(SOCKET handle)
  **************************************/
 	InetRemPort* const port = alloc_port(NULL);
 
-	port->port_handle = handle;
+	port->port_handle = sock;
 	port->port_flags |= PORT_server;
 	port->port_server_flags |= SRVR_server;
 
@@ -1158,11 +1150,11 @@ InetRemPort* INET_reconnect(SOCKET handle)
 	return port;
 }
 
-InetRemPort* INET_server(SOCKET sock)
+InetRemPort* InetRemPort::server(SOCKET sock)
 {
 /**************************************
  *
- *	I N E T _ s e r v e r
+ *	s e r v e r
  *
  **************************************
  *
@@ -2687,18 +2679,18 @@ static bool packet_receive2(RemPort* port, UCHAR* p, SSHORT bufSize, SSHORT* len
 	return true;
 }
 
-static InetRemPort* inet_try_connect(PACKET* packet,
-									 Rdb* rdb,
-									 const PathName& file_name,
-									 const TEXT* node_name,
-									 ClumpletReader& dpb,
-									 RefPtr<const Config>* config,
-									 const PathName* ref_db_name,
-									 int af)
+InetRemPort* InetRemPort::try_connect(PACKET* packet,
+									  Rdb* rdb,
+									  const PathName& file_name,
+									  const TEXT* node_name,
+									  ClumpletReader& dpb,
+									  RefPtr<const Config>* config,
+									  const PathName* ref_db_name,
+									  int af)
 {
 /**************************************
  *
- *	i n e t _ t r y _ c o n n e c t
+ *	t r y _ c o n n e c t
  *
  **************************************
  *
@@ -2726,7 +2718,7 @@ static InetRemPort* inet_try_connect(PACKET* packet,
 	InetRemPort* port = NULL;
 	try
 	{
-		port = INET_connect(node_name, packet, false, &dpb, config, af);
+		port = connect(node_name, packet, false, &dpb, config, af);
 	}
 	catch (const Exception&)
 	{

@@ -361,7 +361,7 @@ int CLIB_ROUTINE main( int argc, char** argv)
 		{
 			try
 			{
-				port = INET_connect(protocol, 0, INET_SERVER_flag, 0, NULL);
+				port = InetRemPort::connect(protocol, 0, INET_SERVER_flag, 0, NULL);
 			}
 			catch (const Firebird::Exception& ex)
 			{
@@ -375,7 +375,7 @@ int CLIB_ROUTINE main( int argc, char** argv)
 
 		if (classic)
 		{
-			port = INET_server(channel);
+			port = InetRemPort::server(channel);
 			if (!port)
 			{
 				gds__log("Unable to start INET_server");

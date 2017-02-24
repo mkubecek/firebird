@@ -5593,7 +5593,7 @@ static RemPort* analyze(ClntAuthBlock& cBlock, PathName& attach_name, unsigned f
 			ISC_utf8ToSystem(node_name);
 		}
 
-		port = INET_analyze(&cBlock, attach_name, node_name.c_str(), flags & ANALYZE_UV, pb,
+		port = InetRemPort::analyze(&cBlock, attach_name, node_name.c_str(), flags & ANALYZE_UV, pb,
 			cBlock.getConfig(), ref_db_name, cryptCb, inet_af);
 	}
 
@@ -5627,7 +5627,7 @@ static RemPort* analyze(ClntAuthBlock& cBlock, PathName& attach_name, unsigned f
 				ISC_unescape(node_name);
 				ISC_utf8ToSystem(node_name);
 
-				port = INET_analyze(&cBlock, expanded_name, node_name.c_str(), flags & ANALYZE_UV, pb,
+				port = InetRemPort::analyze(&cBlock, expanded_name, node_name.c_str(), flags & ANALYZE_UV, pb,
 					cBlock.getConfig(), ref_db_name, cryptCb);
 			}
 		}
@@ -5656,7 +5656,7 @@ static RemPort* analyze(ClntAuthBlock& cBlock, PathName& attach_name, unsigned f
 #endif
 			if (!port)
 			{
-				port = INET_analyze(&cBlock, attach_name, INET_LOCALHOST, flags & ANALYZE_UV, pb,
+				port = InetRemPort::analyze(&cBlock, attach_name, INET_LOCALHOST, flags & ANALYZE_UV, pb,
 					cBlock.getConfig(), ref_db_name, cryptCb);
 			}
 		}
