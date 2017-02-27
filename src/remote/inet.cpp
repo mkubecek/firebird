@@ -285,7 +285,7 @@ public:
 
 	enum HandleState {SEL_BAD, SEL_DISCONNECTED, SEL_NO_DATA, SEL_READY};
 
-	HandleState ok(const RemPort* port)
+	HandleState ok(const InetRemPort* port)
 	{
 #ifdef WIRE_COMPRESS_SUPPORT
 		if (port->port_flags & PORT_z_data)
@@ -1279,8 +1279,11 @@ InetInitializer::InetInitializer()
 }
 
 InetRemPort::InetRemPort(RemPort* parent, USHORT flags)
-	: InetInitializer(), RemPort(RemPort::INET, INET_remote_buffer * 2)
+	: InetInitializer(), RemPort(RemPort::INET, INET_remote_buffer * 2),
+	  port_handle(INVALID_SOCKET), port_channel(INVALID_SOCKET)
 {
+	memset(&port_linger, 0, sizeof(port_linger));
+
 	REMOTE_get_timeout_params(this, 0);
 
 	TEXT buffer[BUFFER_SMALL];
@@ -1925,7 +1928,7 @@ bool InetRemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, Re
 
 	for (;;)
 	{
-		select_port(&INET_select, port);
+		select_port(&INET_select, (InetRemPortPtr&) port);
 		if (port == this && (port->port_server_flags & SRVR_multi_client))
 		{
 			if (INET_shutting_down)
@@ -1978,7 +1981,7 @@ bool InetRemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, Re
 	}
 }
 
-RemPort* InetRemPort::select_accept()
+InetRemPort* InetRemPort::select_accept()
 {
 /**************************************
  *
@@ -2011,10 +2014,10 @@ RemPort* InetRemPort::select_accept()
 		return port;
 	}
 
-	return 0;
+	return NULL;
 }
 
-void InetRemPort::select_port(Select* selct, RemPortPtr& port)
+void InetRemPort::select_port(Select* selct, InetRemPortPtr& port)
 {
 /**************************************
  *
@@ -2034,7 +2037,7 @@ void InetRemPort::select_port(Select* selct, RemPortPtr& port)
 
 	MutexLockGuard guard(port_mutex, FB_FUNCTION);
 
-	for (port = this; port; port = port->port_next)
+	for (port = this; port; port = port->next())
 	{
 		Select::HandleState result = selct->ok(port);
 		selct->unset(port->port_handle);
@@ -2108,7 +2111,7 @@ bool InetRemPort::select_wait(Select* selct)
 				SOCLOSE(s);
 			}
 
-			for (RemPort* port = this; port; port = port->port_next)
+			for (InetRemPort* port = this; port; port = port->next())
 			{
 				if (port->port_state == RemPort::PENDING &&
 					// don't wait on still listening (not connected) async port
@@ -2199,7 +2202,7 @@ bool InetRemPort::select_wait(Select* selct)
 				if (selct->getCount() == 0)
 				{
 					MutexLockGuard guard(port_mutex, FB_FUNCTION);
-					for (RemPort* port = this; port; port = port->port_next)
+					for (InetRemPort* port = this; port; port = port->next())
 					{
 						selct->unset(port->port_handle);
 					}

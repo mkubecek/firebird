@@ -42,9 +42,17 @@ protected:
 
 struct addrinfo;
 class Select;
+class InetRemPort;
+
+typedef Firebird::RefPtr<InetRemPort> InetRemPortPtr;
 
 class InetRemPort : protected InetInitializer, public RemPort
 {
+protected:
+	SOCKET				port_handle;		// handle for INET socket
+	SOCKET				port_channel;		// handle for connection (from by OS)
+	struct linger		port_linger;		// linger value as defined by SO_LINGER
+
 public:
 	InetRemPort(RemPort* const parent, const USHORT flags);
 
@@ -91,11 +99,14 @@ protected:
 	bool				setNoNagleOption();
 	void				genError(bool releasePort, const Firebird::Arg::StatusVector& v);
 	InetRemPort*		listener_socket(USHORT flag, const addrinfo* pai);
-	RemPort*			select_accept();
-	void				select_port(Select* selct, RemPortPtr& port);
+	InetRemPort*		select_accept();
+	void				select_port(Select* selct, InetRemPortPtr& port);
 	bool				select_wait(Select* selct);
 
+	InetRemPort*		next() { return (InetRemPort*) port_next; };
+
 	friend class InetInitializer;			// needs allocPort()
+	friend class Select;					// needs port_handle
 };
 
 #endif // REMOTE_INET_PROTO_H

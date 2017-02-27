@@ -914,9 +914,6 @@ public:
 	SLONG			port_connect_timeout;   // Connection timeout value
 	SLONG			port_dummy_packet_interval; // keep alive dummy packet interval
 	SLONG			port_dummy_timeout;	// time remaining until keepalive packet
-	SOCKET			port_handle;		// handle for INET socket
-	SOCKET			port_channel;		// handle for connection (from by OS)
-	struct linger	port_linger;		// linger value as defined by SO_LINGER
 	Rdb*			port_context;
 	Thread::Handle	port_events_thread;	// handle of thread, handling incoming events
 	void			(*port_events_shutdown)(RemPort*);	// hack - avoid changing API at beta stage
@@ -983,7 +980,7 @@ public:
 		port_parent(0), port_async(0), port_async_receive(0),
 		port_server(0), port_server_flags(0), port_protocol(0), port_buff_size(rpt / 2),
 		port_flags(0), port_connect_timeout(0), port_dummy_packet_interval(0),
-		port_dummy_timeout(0), port_handle(INVALID_SOCKET), port_channel(INVALID_SOCKET), port_context(0),
+		port_dummy_timeout(0), port_context(0),
 		port_events_thread(0), port_events_shutdown(0),
 #ifdef WIN_NT
 		port_pipe(INVALID_HANDLE_VALUE), port_event(INVALID_HANDLE_VALUE),
@@ -1006,7 +1003,6 @@ public:
 		port_snd_packets(0), port_rcv_packets(0), port_snd_bytes(0), port_rcv_bytes(0)
 	{
 		addRef();
-		memset(&port_linger, 0, sizeof port_linger);
 		memset(port_buffer, 0, rpt);
 #ifdef DEV_BUILD
 		++portCounter;
