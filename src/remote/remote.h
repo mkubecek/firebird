@@ -1108,6 +1108,8 @@ public:
 	virtual bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
 	virtual void		abort_aux_connection();
 	virtual bool		packet_send(const SCHAR* buffer, SSHORT buffer_length);
+	virtual bool		packet_receive(UCHAR* p, SSHORT bufSize, SSHORT* length);
+	virtual bool		packet_receive_full(UCHAR* p, SSHORT bufSize, SSHORT* length);
 
 	bool haveRecvData()
 	{

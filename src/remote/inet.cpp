@@ -438,22 +438,16 @@ static bool forkThreadStarted = false;
 static SocketsArray* forkSockets;
 #endif
 
-static bool_t	inet_getbytes(XDR*, SCHAR *, u_int);
-static bool		inet_read(XDR*);
-
 #ifdef DEBUG
 static void packet_print(const TEXT*, const UCHAR*, int, ULONG);
 #endif
-
-static bool		packet_receive(RemPort*, UCHAR*, SSHORT, SSHORT*);
-static bool		packet_receive2(RemPort*, UCHAR*, SSHORT, SSHORT*);
 
 static int		xdrinet_create(XDR*, RemPort*, UCHAR *, USHORT, enum xdr_op);
 
 
 static XDR::xdr_ops inet_ops =
 {
-	inet_getbytes,
+	InetRemPort::getbytes,
 	InetRemPort::putbytes
 };
 
@@ -1946,7 +1940,7 @@ bool InetRemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, Re
 			}
 			else if (port = select_accept())
 			{
-				if (!REMOTE_inflate(port, packet_receive, buffer, bufsize, length))
+				if (!REMOTE_inflate(port, &RemPort::packet_receive, buffer, bufsize, length))
 				{
 					*length = 0;
 				}
@@ -1966,7 +1960,7 @@ bool InetRemPort::select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, Re
 				return true;
 			}
 
-			if (!REMOTE_inflate(port, packet_receive, buffer, bufsize, length))
+			if (!REMOTE_inflate(port, &RemPort::packet_receive, buffer, bufsize, length))
 			{
 				if (port->port_flags & (PORT_disconnect | PORT_connecting))
 				{
@@ -2395,7 +2389,7 @@ void InetRemPort::genError(bool releasePort, const Arg::StatusVector& v)
 }
 
 
-static bool_t inet_getbytes( XDR* xdrs, SCHAR* buff, u_int count)
+bool_t InetRemPort::getbytes(XDR* xdrs, SCHAR* buff, u_int count)
 {
 /**************************************
  *
@@ -2436,7 +2430,7 @@ static bool_t inet_getbytes( XDR* xdrs, SCHAR* buff, u_int count)
 			xdrs->x_handy = 0;
 		}
 
-		if (!inet_read(xdrs))
+		if (!read(xdrs))
 			return FALSE;
 	}
 
@@ -2457,7 +2451,7 @@ static bool_t inet_getbytes( XDR* xdrs, SCHAR* buff, u_int count)
 
 	while (--bytecount >= 0)
 	{
-		if (!xdrs->x_handy && !inet_read(xdrs))
+		if (!xdrs->x_handy && !read(xdrs))
 			return FALSE;
 		*buff++ = *xdrs->x_private++;
 		--xdrs->x_handy;
@@ -2596,11 +2590,11 @@ bool_t InetRemPort::putbytes(XDR* xdrs, const SCHAR* buff, u_int count)
 	return TRUE;
 }
 
-static bool inet_read( XDR* xdrs)
+bool InetRemPort::read(XDR* xdrs)
 {
 /**************************************
  *
- *	i n e t _ r e a d
+ *	r e a d
  *
  **************************************
  *
@@ -2611,7 +2605,7 @@ static bool inet_read( XDR* xdrs)
  *	message sent will handle this.
  *
  **************************************/
-	RemPort* port = (RemPort*) xdrs->x_public;
+	InetRemPort* port = (InetRemPort*) xdrs->x_public;
 	char* p = xdrs->x_base;
 	const char* const end = p + INET_remote_buffer;
 
@@ -2625,36 +2619,12 @@ static bool inet_read( XDR* xdrs)
 
 	SSHORT length = end - p;
 	port->port_flags &= ~PORT_z_data;
-	if (!REMOTE_inflate(port, packet_receive2, (UCHAR*)p, length, &length))
+	if (!REMOTE_inflate(port, &RemPort::packet_receive_full, (UCHAR*)p, length, &length))
 		return false;
 	p += length;
 
 	xdrs->x_handy = (int) ((SCHAR *) p - xdrs->x_base);
 	xdrs->x_private = xdrs->x_base;
-
-	return true;
-}
-
-static bool packet_receive2(RemPort* port, UCHAR* p, SSHORT bufSize, SSHORT* length)
-{
-	*length = 0;
-
-	while (true)
-	{
-		SSHORT l = bufSize - *length;
-		if (!packet_receive(port, p + *length, l, &l))
-			return false;
-
-		if (l >= 0)
-		{
-			*length += l;
-			break;
-		}
-
-		*length -= l;
-		if (!port->packet_send(0, 0))
-			return false;
-	}
 
 	return true;
 }
@@ -2781,7 +2751,7 @@ static void packet_print(const TEXT* string, const UCHAR* packet, int length, UL
 }
 #endif
 
-static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, SSHORT* length)
+bool InetRemPort::packet_receive(UCHAR* buffer, SSHORT buffer_length, SSHORT* length)
 {
 /**************************************
  *
@@ -2797,9 +2767,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
  *
  **************************************/
 
-	InetRemPort* iport = (InetRemPort*)port;
-
-	if (port->port_flags & PORT_disconnect) {
+	if (port_flags & PORT_disconnect) {
 		return false;
 	}
 
@@ -2807,17 +2775,17 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 	timeout.tv_usec = 0;
 	timeval* time_ptr = NULL;
 
-	if (port->port_protocol == 0)
+	if (port_protocol == 0)
 	{
 		// If the protocol is 0 we are still in the process of establishing
 		// a connection. Add a time out to the wait.
-		timeout.tv_sec = port->port_connect_timeout;
+		timeout.tv_sec = port_connect_timeout;
 		time_ptr = &timeout;
 	}
-	else if (port->port_dummy_packet_interval > 0)
+	else if (port_dummy_packet_interval > 0)
 	{
 		// Set the time interval for sending dummy packets to the client
-		timeout.tv_sec = port->port_dummy_packet_interval;
+		timeout.tv_sec = port_dummy_packet_interval;
 		time_ptr = &timeout;
 	}
 
@@ -2826,11 +2794,11 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 	// Thanks to Brad Pepers who reported this bug  FSG 3 MAY 2001
 	const timeval savetime = timeout;
 
-	const SOCKET ph = port->port_handle;
+	const SOCKET ph = port_handle;
 	if (ph == INVALID_SOCKET)
 	{
-		if (!(port->port_flags & PORT_disconnect))
-			iport->error(true, "invalid socket in packet_receive", isc_net_read_err, EINVAL);
+		if (!(port_flags & PORT_disconnect))
+			error(true, "invalid socket in packet_receive", isc_net_read_err, EINVAL);
 
 		return false;
 	}
@@ -2857,7 +2825,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 		// Don't send op_dummy packets on aux port; the server won't
 		// read them because it only writes to aux ports.
 
-		if ( !(port->port_flags & PORT_async) )
+		if ( !(port_flags & PORT_async) )
 		{
 			Select slct;
 			slct.set(ph);
@@ -2880,11 +2848,11 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 
 			if (slct_count == -1)
 			{
-				if (!(port->port_flags & PORT_disconnect))
+				if (!(port_flags & PORT_disconnect))
 				{
 					try
 					{
-						iport->error(false, "select in packet_receive", isc_net_read_err, inetErrNo);
+						error(false, "select in packet_receive", isc_net_read_err, inetErrNo);
 					}
 					catch (const Exception&) { }
 				}
@@ -2901,26 +2869,26 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 				}
 #endif
 				packet.p_operation = op_dummy;
-				if (!port->send(&packet))
+				if (!send(&packet))
 				{
 					return false;
 				}
 				continue;
 			}
 
-			if (!slct_count && port->port_protocol == 0)
+			if (!slct_count && port_protocol == 0)
 			{
 				return false;
 			}
 		}
 
-		n = recv(port->port_handle, reinterpret_cast<char*>(buffer), buffer_length, 0);
+		n = recv(port_handle, reinterpret_cast<char*>(buffer), buffer_length, 0);
 		inetErrNo = INET_ERRNO;
 
 		// decrypt
-		if (n > 0 && port->port_crypt_plugin)
+		if (n > 0 && port_crypt_plugin)
 		{
-			port->port_crypt_plugin->decrypt(&st, n, buffer, buffer);
+			port_crypt_plugin->decrypt(&st, n, buffer, buffer);
 			if (st.getState() & Firebird::IStatus::STATE_ERRORS)
 			{
 				status_exception::raise(&st);
@@ -2931,7 +2899,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 			break;
 	}
 
-	if (n <= 0 && (port->port_flags & PORT_disconnect)) {
+	if (n <= 0 && (port_flags & PORT_disconnect)) {
 		return false;
 	}
 
@@ -2939,7 +2907,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 	{
 		try
 		{
-			iport->error(false, "read", isc_net_read_err, inetErrNo);
+			error(false, "read", isc_net_read_err, inetErrNo);
 		}
 		catch (const Exception&) { }
 		return false;
@@ -2947,7 +2915,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 
 	if (!n)
 	{
-		port->port_state = RemPort::BROKEN;
+		port_state = RemPort::BROKEN;
 		return false;
 	}
 
@@ -2963,7 +2931,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 			INET_force_error = 1;
 			try
 			{
-				iport->error(false, "simulated error - read", isc_net_read_err);
+				error(false, "simulated error - read", isc_net_read_err);
 			}
 			catch (const Exception&) { }
 			return false;
@@ -2971,8 +2939,8 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 	} // end scope
 #endif
 
-	port->port_rcv_packets++;
-	port->port_rcv_bytes += n;
+	port_rcv_packets++;
+	port_rcv_bytes += n;
 
 	*length = n;
 

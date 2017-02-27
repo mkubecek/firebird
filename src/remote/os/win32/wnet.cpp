@@ -79,7 +79,6 @@ static bool_t	wnet_write(XDR*); //, int);
 #ifdef DEBUG
 static void		packet_print(const TEXT*, const UCHAR*, const int);
 #endif
-static bool		packet_receive(RemPort*, UCHAR*, SSHORT, SSHORT*);
 static void		wnet_make_file_name(TEXT*, DWORD);
 
 static int		cleanup_ports(const int, const int, void*);
@@ -1200,7 +1199,7 @@ static bool_t wnet_read( XDR* xdrs)
 	while (true)
 	{
 		SSHORT length = end - p;
-		if (!packet_receive(port, reinterpret_cast<UCHAR*>(p), length, &length))
+		if (!port->packet_receive(reinterpret_cast<UCHAR*>(p), length, &length))
 		{
 			return FALSE;
 		}
@@ -1289,7 +1288,7 @@ static void packet_print(const TEXT* string, const UCHAR* packet, const int leng
 #endif
 
 
-static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, SSHORT* length)
+bool WnetRemPort::packet_receive(UCHAR* buffer, SSHORT buffer_length, SSHORT* length)
 {
 /**************************************
  *
@@ -1306,35 +1305,35 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
  **************************************/
 	DWORD n = 0;
 	OVERLAPPED ovrl = {0};
-	ovrl.hEvent = port->port_event;
+	ovrl.hEvent = port_event;
 
-	BOOL status = ReadFile(port->port_pipe, buffer, buffer_length, &n, &ovrl);
+	BOOL status = ReadFile(port_pipe, buffer, buffer_length, &n, &ovrl);
 	DWORD dwError = GetLastError();
 
 	if (!status && dwError == ERROR_IO_PENDING)
 	{
-		status = GetOverlappedResult(port->port_pipe, &ovrl, &n, TRUE);
+		status = GetOverlappedResult(port_pipe, &ovrl, &n, TRUE);
 		dwError = GetLastError();
 	}
 	if (!status && dwError != ERROR_BROKEN_PIPE) {
-		return wnet_error(port, "ReadFile", isc_net_read_err, dwError);
+		return wnet_error(this, "ReadFile", isc_net_read_err, dwError);
 	}
 
 	if (!n)
 	{
-		if (port->port_flags & PORT_detached)
+		if (port_flags & PORT_detached)
 			return false;
 
-		return wnet_error(port, "ReadFile end-of-file", isc_net_read_err, dwError);
+		return wnet_error(this, "ReadFile end-of-file", isc_net_read_err, dwError);
 	}
 
 	// decrypt
-	if (port->port_crypt_plugin)
+	if (port_crypt_plugin)
 	{
 		LocalStatus ls;
 		CheckStatusWrapper st(&ls);
 
-		port->port_crypt_plugin->decrypt(&st, n, buffer, buffer);
+		port_crypt_plugin->decrypt(&st, n, buffer, buffer);
 		if (st.getState() & IStatus::STATE_ERRORS)
 		{
 			status_exception::raise(&st);
@@ -1345,8 +1344,8 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 	packet_print("receive", buffer, n);
 #endif
 
-	port->port_rcv_packets++;
-	port->port_rcv_bytes += n;
+	port_rcv_packets++;
+	port_rcv_bytes += n;
 
 	*length = (SSHORT) n;
 

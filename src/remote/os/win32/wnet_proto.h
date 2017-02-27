@@ -52,6 +52,7 @@ public:
 	virtual RemPort*	aux_connect(PACKET* packet);
 	virtual RemPort*	aux_request(PACKET* packet);
 	virtual bool		packet_send(const SCHAR* buffer, SSHORT buffer_length);
+	virtual bool		packet_receive(UCHAR* p, SSHORT bufSize, SSHORT* length);
 };
 
 #endif // REMOTE_WNET_PROTO_H

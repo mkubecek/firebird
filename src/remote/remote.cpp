@@ -667,6 +667,37 @@ bool RemPort::packet_send(const SCHAR* buffer, SSHORT buffer_length)
 	return false;
 }
 
+bool RemPort::packet_receive(UCHAR* buffer, SSHORT bufSize, SSHORT* length)
+{
+	fb_assert(false);	// implemented in (some) subclasses
+
+	return false;
+}
+
+bool RemPort::packet_receive_full(UCHAR* p, SSHORT bufSize, SSHORT* length)
+{
+	*length = 0;
+
+	while (true)
+	{
+		SSHORT l = bufSize - *length;
+		if (!packet_receive(p + *length, l, &l))
+			return false;
+
+		if (l >= 0)
+		{
+			*length += l;
+			break;
+		}
+
+		*length -= l;
+		if (!packet_send(0, 0))
+			return false;
+	}
+
+	return true;
+}
+
 void RemPort::auxAcceptError(PACKET* packet)
 {
 	if (port_protocol >= PROTOCOL_VERSION13)
@@ -1384,12 +1415,12 @@ RemPort::~RemPort()
 #endif
 }
 
-bool REMOTE_inflate(RemPort* port, PacketReceive* packet_receive, UCHAR* buffer,
+bool REMOTE_inflate(RemPort* port, PacketReceive pReceive, UCHAR* buffer,
 	SSHORT buffer_length, SSHORT* length)
 {
 #ifdef WIRE_COMPRESS_SUPPORT
 	if (!port->port_compressed)
-		return packet_receive(port, buffer, buffer_length, length);
+		return (port->*pReceive)(buffer, buffer_length, length);
 
 	z_stream& strm = port->port_recv_stream;
 	strm.avail_out = buffer_length;
@@ -1442,7 +1473,7 @@ bool REMOTE_inflate(RemPort* port, PacketReceive* packet_receive, UCHAR* buffer,
 			strm.next_in = &port->port_compressed[REM_RECV_OFFSET(port->port_buff_size)];
 
 		SSHORT l = (SSHORT) (port->port_buff_size - strm.avail_in);
-		if ((!packet_receive(port, strm.next_in, l, &l)) || (l <= 0))	// fixit - 2 ways to report errors in same routine
+		if ((!(port->*pReceive)(strm.next_in, l, &l)) || (l <= 0))	// fixit - 2 ways to report errors in same routine
 		{
 			port->port_flags &= ~PORT_z_data;
 			return false;
@@ -1459,7 +1490,7 @@ bool REMOTE_inflate(RemPort* port, PacketReceive* packet_receive, UCHAR* buffer,
 
 	return true;
 #else
-	return packet_receive(port, buffer, buffer_length, length);
+	return (port->*pReceive)(buffer, buffer_length, length);
 #endif
 }
 
