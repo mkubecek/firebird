@@ -51,6 +51,7 @@ public:
 	virtual XDR_INT		send_partial(PACKET* packet);
 	virtual RemPort*	aux_connect(PACKET* packet);
 	virtual RemPort*	aux_request(PACKET* packet);
+	virtual bool		packet_send(const SCHAR* buffer, SSHORT buffer_length);
 };
 
 #endif // REMOTE_WNET_PROTO_H

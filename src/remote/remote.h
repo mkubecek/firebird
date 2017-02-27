@@ -1107,6 +1107,7 @@ public:
 	virtual RemPort*	aux_request(PACKET* packet) = 0;
 	virtual bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
 	virtual void		abort_aux_connection();
+	virtual bool		packet_send(const SCHAR* buffer, SSHORT buffer_length);
 
 	bool haveRecvData()
 	{

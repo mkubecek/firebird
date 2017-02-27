@@ -80,7 +80,6 @@ static bool_t	wnet_write(XDR*); //, int);
 static void		packet_print(const TEXT*, const UCHAR*, const int);
 #endif
 static bool		packet_receive(RemPort*, UCHAR*, SSHORT, SSHORT*);
-static bool		packet_send(RemPort*, const SCHAR*, SSHORT);
 static void		wnet_make_file_name(TEXT*, DWORD);
 
 static int		cleanup_ports(const int, const int, void*);
@@ -1211,7 +1210,7 @@ static bool_t wnet_read( XDR* xdrs)
 			break;
 		}
 		p -= length;
-		if (!packet_send(port, 0, 0))
+		if (!port->packet_send(0, 0))
 			return FALSE;
 	}
 
@@ -1250,7 +1249,7 @@ static bool_t wnet_write( XDR* xdrs /*, bool_t end_flag*/)
 	{
 		const SSHORT l = MIN(length, MAX_DATA);
 		length -= l;
-		if (!packet_send(vport, p, (SSHORT) (length ? -l : l)))
+		if (!vport->packet_send(p, (SSHORT) (length ? -l : l)))
 			return FALSE;
 		p += l;
 	}
@@ -1355,7 +1354,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 }
 
 
-static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_length)
+bool WnetRemPort::packet_send(const SCHAR* buffer, SSHORT buffer_length)
 {
 /**************************************
  *
@@ -1372,13 +1371,13 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 
 	// encrypt
 	HalfStaticArray<char, BUFFER_TINY> b;
-	if (port->port_crypt_plugin && port->port_crypt_complete)
+	if (port_crypt_plugin && port_crypt_complete)
 	{
 		LocalStatus ls;
 		CheckStatusWrapper st(&ls);
 
 		char* d = b.getBuffer(buffer_length);
-		port->port_crypt_plugin->encrypt(&st, buffer_length, data, d);
+		port_crypt_plugin->encrypt(&st, buffer_length, data, d);
 		if (st.getState() & IStatus::STATE_ERRORS)
 		{
 			status_exception::raise(&st);
@@ -1388,28 +1387,28 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 	}
 
 	OVERLAPPED ovrl = {0};
-	ovrl.hEvent = port->port_event;
+	ovrl.hEvent = port_event;
 
 	DWORD n;
-	BOOL status = WriteFile(port->port_pipe, data, length, &n, &ovrl);
+	BOOL status = WriteFile(port_pipe, data, length, &n, &ovrl);
 	DWORD dwError = GetLastError();
 
 	if (!status && dwError == ERROR_IO_PENDING)
 	{
-		status = GetOverlappedResult(port->port_pipe, &ovrl, &n, TRUE);
+		status = GetOverlappedResult(port_pipe, &ovrl, &n, TRUE);
 		dwError = GetLastError();
 	}
 	if (!status)
-		return wnet_error(port, "WriteFile", isc_net_write_err, dwError);
+		return wnet_error(this, "WriteFile", isc_net_write_err, dwError);
 	if (n != length)
-		return wnet_error(port, "WriteFile truncated", isc_net_write_err, dwError);
+		return wnet_error(this, "WriteFile truncated", isc_net_write_err, dwError);
 
 #if defined(DEBUG) && defined(WNET_trace)
 	packet_print("send", reinterpret_cast<const UCHAR*>(buffer), buffer_length);
 #endif
 
-	port->port_snd_packets++;
-	port->port_snd_bytes += buffer_length;
+	port_snd_packets++;
+	port_snd_bytes += buffer_length;
 
 	return true;
 }

@@ -45,7 +45,6 @@ class RemPort;
 struct rem_fmt;
 struct Rdb;
 typedef bool PacketReceive(RemPort*, UCHAR*, SSHORT, SSHORT*);
-typedef bool PacketSend(RemPort*, const SCHAR*, SSHORT);
 typedef bool ProtoWrite(XDR*);
 enum LegacyPlugin {PLUGIN_NEW = 0, PLUGIN_LEGACY, PLUGIN_TRUSTED};
 
@@ -65,7 +64,7 @@ Firebird::RefPtr<const Config> REMOTE_get_config(const Firebird::PathName* dbNam
 	const Firebird::string* dpb_config = NULL);
 void		REMOTE_check_response(Firebird::IStatus* warning, Rdb* rdb, PACKET* packet, bool checkKeys = false);
 bool		REMOTE_inflate(RemPort*, PacketReceive*, UCHAR*, SSHORT, SSHORT*);
-bool		REMOTE_deflate(XDR*, ProtoWrite*, PacketSend*, bool flash);
+bool		REMOTE_deflate(XDR*, ProtoWrite*, bool flash);
 
 static inline void REMOTE_parseList(Remote::ParsedList& parsed, const Firebird::PathName& list)
 {

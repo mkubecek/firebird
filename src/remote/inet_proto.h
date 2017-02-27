@@ -58,6 +58,7 @@ public:
 	virtual RemPort*	aux_request(PACKET* packet);
 	virtual bool		select_multi(UCHAR* buffer, SSHORT bufsize, SSHORT* length, RemPortPtr& port);
 	virtual void		abort_aux_connection();
+	virtual bool		packet_send(const SCHAR* buffer, SSHORT buffer_length);
 
 	// public interface
 	static InetRemPort*	analyze(ClntAuthBlock* cBlock, const Firebird::PathName& file_name,
@@ -68,6 +69,9 @@ public:
 								Firebird::RefPtr<const Config>* config, int af = AF_UNSPEC);
 	static InetRemPort* reconnect(SOCKET sock);
 	static InetRemPort*	server(SOCKET sock);
+
+	static bool_t		putbytes(XDR* xdrs, const SCHAR* buff, u_int count);
+	static bool			write(XDR* xdrs);
 
 	// these should be protected eventually
 	void				error(bool releasePort, const TEXT* function, ISC_STATUS operation, int status);

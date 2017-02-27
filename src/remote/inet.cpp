@@ -439,9 +439,7 @@ static SocketsArray* forkSockets;
 #endif
 
 static bool_t	inet_getbytes(XDR*, SCHAR *, u_int);
-static bool_t	inet_putbytes(XDR*, const SCHAR*, u_int);
 static bool		inet_read(XDR*);
-static bool		inet_write(XDR*);
 
 #ifdef DEBUG
 static void packet_print(const TEXT*, const UCHAR*, int, ULONG);
@@ -449,7 +447,6 @@ static void packet_print(const TEXT*, const UCHAR*, int, ULONG);
 
 static bool		packet_receive(RemPort*, UCHAR*, SSHORT, SSHORT*);
 static bool		packet_receive2(RemPort*, UCHAR*, SSHORT, SSHORT*);
-static bool		packet_send(RemPort*, const SCHAR*, SSHORT);
 
 static int		xdrinet_create(XDR*, RemPort*, UCHAR *, USHORT, enum xdr_op);
 
@@ -457,7 +454,7 @@ static int		xdrinet_create(XDR*, RemPort*, UCHAR *, USHORT, enum xdr_op);
 static XDR::xdr_ops inet_ops =
 {
 	inet_getbytes,
-	inet_putbytes
+	InetRemPort::putbytes
 };
 
 
@@ -2261,7 +2258,7 @@ XDR_INT InetRemPort::send(PACKET* packet)
 	} // end scope
 #endif
 
-	return REMOTE_deflate(&port_send, inet_write, packet_send, true);
+	return REMOTE_deflate(&port_send, InetRemPort::write, true);
 }
 
 XDR_INT InetRemPort::send_partial(PACKET* packet)
@@ -2532,7 +2529,7 @@ void InetRemPort::error(bool releasePort, const TEXT* function, ISC_STATUS opera
 	}
 }
 
-static bool_t inet_putbytes( XDR* xdrs, const SCHAR* buff, u_int count)
+bool_t InetRemPort::putbytes(XDR* xdrs, const SCHAR* buff, u_int count)
 {
 /**************************************
  *
@@ -2567,7 +2564,7 @@ static bool_t inet_putbytes( XDR* xdrs, const SCHAR* buff, u_int count)
 			xdrs->x_handy = 0;
 		}
 
-		if (!REMOTE_deflate(xdrs, inet_write, packet_send, false))
+		if (!REMOTE_deflate(xdrs, InetRemPort::write, false))
 		{
 			return FALSE;
 		}
@@ -2590,7 +2587,7 @@ static bool_t inet_putbytes( XDR* xdrs, const SCHAR* buff, u_int count)
 
 	while (--bytecount >= 0)
 	{
-		if (xdrs->x_handy <= 0 && !REMOTE_deflate(xdrs, inet_write, packet_send, false))
+		if (xdrs->x_handy <= 0 && !REMOTE_deflate(xdrs, InetRemPort::write, false))
 			return FALSE;
 		--xdrs->x_handy;
 		*xdrs->x_private++ = *buff++;
@@ -2655,7 +2652,7 @@ static bool packet_receive2(RemPort* port, UCHAR* p, SSHORT bufSize, SSHORT* len
 		}
 
 		*length -= l;
-		if (!packet_send(port, 0, 0))
+		if (!port->packet_send(0, 0))
 			return false;
 	}
 
@@ -2723,11 +2720,11 @@ InetRemPort* InetRemPort::try_connect(PACKET* packet,
 	return port;
 }
 
-static bool inet_write(XDR* xdrs)
+bool InetRemPort::write(XDR* xdrs)
 {
 /**************************************
  *
- *	i n e t _ w r i t e
+ *	w r i t e
  *
  **************************************
  *
@@ -2737,7 +2734,8 @@ static bool inet_write(XDR* xdrs)
  **************************************/
 	// Encode the data portion of the packet
 
-	RemPort* port = (RemPort*) xdrs->x_public;
+	InetRemPort* port = (InetRemPort*) xdrs->x_public;
+	fb_assert(port->port_type == INET);
 	const char* p = xdrs->x_base;
 	USHORT length = xdrs->x_private - p;
 
@@ -2748,7 +2746,7 @@ static bool inet_write(XDR* xdrs)
 	{
 		const SSHORT l = (SSHORT) MIN(length, INET_remote_buffer);
 		length -= l;
-		if (!packet_send(port, p, (SSHORT) (length ? -l : l)))
+		if (!port->packet_send(p, (SSHORT) (length ? -l : l)))
 			return false;
 		p += l;
 	}
@@ -2982,7 +2980,7 @@ static bool packet_receive(RemPort* port, UCHAR* buffer, SSHORT buffer_length, S
 }
 
 
-static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_length)
+bool InetRemPort::packet_send(const SCHAR* buffer, SSHORT buffer_length)
 {
 /**************************************
  *
@@ -2995,19 +2993,18 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
  *
  **************************************/
 
-	InetRemPort* iport = (InetRemPort*)port;
 	SSHORT length = buffer_length;
 	const char* data = buffer;
 
 	// encrypt
 	HalfStaticArray<char, BUFFER_TINY> b;
-	if (port->port_crypt_plugin && port->port_crypt_complete)
+	if (port_crypt_plugin && port_crypt_complete)
 	{
 		LocalStatus ls;
 		CheckStatusWrapper st(&ls);
 
 		char* d = b.getBuffer(buffer_length);
-		port->port_crypt_plugin->encrypt(&st, buffer_length, data, d);
+		port_crypt_plugin->encrypt(&st, buffer_length, data, d);
 		if (st.getState() & Firebird::IStatus::STATE_ERRORS)
 		{
 			status_exception::raise(&st);
@@ -3025,9 +3022,9 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 			fflush(stdout);
 		}
 #endif
-		SSHORT n = send(port->port_handle, data, length, FB_SEND_FLAGS);
+		SSHORT n = ::send(port_handle, data, length, FB_SEND_FLAGS);
 #if COMPRESS_DEBUG > 1
-		fprintf(stderr, "send(%d, %p, %d, FB_SEND_FLAGS) == %d\n", port->port_handle, data, length, n);
+		fprintf(stderr, "send(%d, %p, %d, FB_SEND_FLAGS) == %d\n", port_handle, data, length, n);
 #endif
 #ifdef DEBUG
 		if (INET_trace & TRACE_operations)
@@ -3048,7 +3045,7 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 
 			try
 			{
-				iport->error(false, "send", isc_net_write_err, INET_ERRNO);
+				error(false, "send", isc_net_write_err, INET_ERRNO);
 			}
 			catch (const Exception&) { }
 			return false;
@@ -3063,13 +3060,13 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 	struct sigaction internal_handler, client_handler;
 #endif // HAVE_SETITIMER
 
-	if ((port->port_flags & PORT_async) && !(port->port_flags & PORT_no_oob))
+	if ((port_flags & PORT_async) && !(port_flags & PORT_no_oob))
 	{
 		int count = 0;
 		SSHORT n;
 		int inetErrNo = 0;
 		const char* b = buffer;
-		while ((n = send(port->port_handle, b, 1, MSG_OOB | FB_SEND_FLAGS)) == -1 &&
+		while ((n = ::send(port_handle, b, 1, MSG_OOB | FB_SEND_FLAGS)) == -1 &&
 				(INET_ERRNO == ENOBUFS || INTERRUPT_ERROR(INET_ERRNO)))
 		{
 			inetErrNo = INET_ERRNO;
@@ -3123,7 +3120,7 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 		{
 			try
 			{
-				iport->error(false, "send/oob", isc_net_write_err, inetErrNo);
+				error(false, "send/oob", isc_net_write_err, inetErrNo);
 			}
 			catch (const Exception&) { }
 			return false;
@@ -3142,7 +3139,7 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 			INET_force_error = 1;
 			try
 			{
-				iport->error(false, "simulated error - send", isc_net_write_err, 0);
+				error(false, "simulated error - send", isc_net_write_err, 0);
 			}
 			catch (const Exception&) { }
 			return false;
@@ -3150,8 +3147,8 @@ static bool packet_send( RemPort* port, const SCHAR* buffer, SSHORT buffer_lengt
 	} // end scope
 #endif
 
-	port->port_snd_packets++;
-	port->port_snd_bytes += buffer_length;
+	port_snd_packets++;
+	port_snd_bytes += buffer_length;
 
 	return true;
 }

@@ -660,6 +660,13 @@ void RemPort::abort_aux_connection()
 	// no-op unless redefined in a subclass
 }
 
+bool RemPort::packet_send(const SCHAR* buffer, SSHORT buffer_length)
+{
+	fb_assert(false);	// implemented in (some) subclasses
+
+	return false;
+}
+
 void RemPort::auxAcceptError(PACKET* packet)
 {
 	if (port_protocol >= PROTOCOL_VERSION13)
@@ -1456,7 +1463,7 @@ bool REMOTE_inflate(RemPort* port, PacketReceive* packet_receive, UCHAR* buffer,
 #endif
 }
 
-bool REMOTE_deflate(XDR* xdrs, ProtoWrite* proto_write, PacketSend* packet_send, bool flush)
+bool REMOTE_deflate(XDR* xdrs, ProtoWrite* proto_write, bool flush)
 {
 #ifdef WIRE_COMPRESS_SUPPORT
 	RemPort* port = (RemPort*) xdrs->x_public;
@@ -1510,7 +1517,7 @@ bool REMOTE_deflate(XDR* xdrs, ProtoWrite* proto_write, PacketSend* packet_send,
 #if COMPRESS_DEBUG > 1
 			fprintf(stderr, "Send packet %d bytes size\n", port->port_buff_size - strm.avail_out);
 #endif
-			if (!packet_send(port, (SCHAR*) &port->port_compressed[REM_SEND_OFFSET(port->port_buff_size)],
+			if (!port->packet_send((SCHAR*) &port->port_compressed[REM_SEND_OFFSET(port->port_buff_size)],
 				(SSHORT) (port->port_buff_size - strm.avail_out)))
 			{
 				return false;
